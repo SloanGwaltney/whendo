@@ -1,0 +1,33 @@
+package main
+
+import (
+	"os"
+	"time"
+)
+
+// defaultTwitchClientID identifies Whendo's official Twitch application,
+// which every release build uses. It's a public client, so the ID isn't a
+// secret and there's no client secret.
+const defaultTwitchClientID = "b9sfy6khyzesqkcyjmykaylirq4h1o"
+
+// twitchClientIDEnvironmentVariable lets a developer log in through their
+// own Twitch application instead of the official one.
+const twitchClientIDEnvironmentVariable = "WHENDO_TWITCH_CLIENT_ID"
+
+// twitchRequestTimeout stops a request to Twitch that hangs from blocking a
+// login or refresh forever.
+const twitchRequestTimeout = 30 * time.Second
+
+// credentialServiceName groups Whendo's secrets in the operating system's
+// credential manager.
+const credentialServiceName = "Whendo"
+
+// twitchClientID returns the Twitch application to log in through: the one
+// named by WHENDO_TWITCH_CLIENT_ID if it's set, otherwise the official one.
+func twitchClientID() string {
+	overrideClientID := os.Getenv(twitchClientIDEnvironmentVariable)
+	if overrideClientID == "" {
+		return defaultTwitchClientID
+	}
+	return overrideClientID
+}

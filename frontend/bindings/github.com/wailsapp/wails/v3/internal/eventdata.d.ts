@@ -5,10 +5,14 @@
 // @ts-ignore: Unused imports
 import type { Events } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import type * as twitchauth$0 from "../../../../SloanGwaltney/whendo/engine/twitchauth/models.js";
+
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
-            "time": string;
+            "twitch-login-state-changed": twitchauth$0.LoginState;
         }
     }
 }

@@ -59,6 +59,7 @@ See [ADR 0001](docs/adr/0001-go-and-wails-for-desktop-app.md) for why we chose G
 - Use Svelte 5 runes only: `$state`, `$derived`, `$effect` and `$props`. Never use Svelte 4 syntax such as `export let`, `$:` reactive statements, `on:event` directives, or stores for component-local state.
 - Use `$derived` for any value computed from other state. Use `$effect` only to sync with something outside Svelte, such as the DOM, timers or third-party libraries, never to set state that could be derived.
 - Don't add SvelteKit or any server-side frontend concepts. The frontend talks to the engine only through the generated Wails bindings.
+- Import Go structs from the generated bindings with `import type`. The build generates them as TypeScript interfaces, which exist only as types, so a value import fails the build. Enums and services are real values and use a normal import.
 - Before adding a dependency, check whether it's React-only. React libraries won't work here; look for a Svelte equivalent or a framework-agnostic library instead.
 
 ### Dependencies
@@ -70,6 +71,10 @@ See [ADR 0001](docs/adr/0001-go-and-wails-for-desktop-app.md) for why we chose G
 ### Code Hygiene
 - Delete dead code instead of commenting it out. Version control keeps the history.
 - Follow the language's conventions and the repo's existing style. Use the language's standard formatter and linter, such as `gofmt` or `prettier`.
+
+### Finishing a Feature
+- Before calling a feature done, run the tests and a full `wails3 build`. Building parts separately, such as `go build` or the frontend on its own, doesn't count: they can pass while the real build fails.
+- Say what was verified and what wasn't. In particular, say whether the app was actually run, not just built.
 
 ### Change Scope
 - Keep each change focused on its task. Don't refactor, reformat or "clean up" code that is unrelated to the task.

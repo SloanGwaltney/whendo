@@ -5,6 +5,12 @@
 
 How Whendo logs users in to Twitch and keeps them logged in. Login is part of the engine, not the Wails layer. Wails only displays the code and verification link and opens the browser.
 
+## Twitch Application
+
+Whendo's Twitch application must use the **Public** client type. The client ID is app configuration and lives with the code, not in this document.
+
+Developers can log in through their own Twitch application by setting the `WHENDO_TWITCH_CLIENT_ID` environment variable to its client ID before starting Whendo, for example `$env:WHENDO_TWITCH_CLIENT_ID = "<client ID>"; wails3 dev` in PowerShell. Their application must also use the **Public** client type.
+
 ## Flow: Device Code Grant
 
 Whendo uses Twitch's Device Code Grant flow with a **Public** client type. Twitch's authentication overview recommends this flow for apps that have limited input or lack a suitable browser, and names Electron applications as an example. A public client has no client secret. That matters because anything shipped inside a desktop app can be extracted, and Whendo has no server of its own that could keep a secret.
