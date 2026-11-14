@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=Whendo
+Comment=Stream automation for streamers
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/whendo %u
+Terminal=false
+Type=Application
+Icon=whendo
+Categories=Utility;
+StartupWMClass=whendo
+
+ 
