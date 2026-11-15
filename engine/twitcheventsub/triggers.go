@@ -7,8 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strconv"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
+	"github.com/SloanGwaltney/whendo/engine/automationsetting"
 	"github.com/SloanGwaltney/whendo/engine/trigger"
 )
 
@@ -65,48 +70,155 @@ const (
 // or version Whendo doesn't understand.
 var ErrUnsupportedSubscription = errors.New("unsupported EventSub subscription")
 
-// Triggers returns the definitions of every trigger the Twitch integration
-// offers.
-func Triggers() []trigger.Definition {
-	return []trigger.Definition{
-		{
-			ID:          RedeemTriggerID,
-			DisplayName: "Channel point redeem",
-			Variables: []trigger.VariableDefinition{
-				{ID: RedeemerDisplayNameVariable, DisplayName: "Redeemer's name"},
-				{ID: UserInputVariable, DisplayName: "Redeemer's message"},
-				{ID: RewardTitleVariable, DisplayName: "Reward name"},
-				{ID: RewardCostVariable, DisplayName: "Reward cost"},
-				{ID: RewardPromptVariable, DisplayName: "Reward description"},
-				{ID: RedeemedAtVariable, DisplayName: "Time of redeem"},
-				{ID: RedeemerLoginVariable, DisplayName: "Redeemer's login name"},
-				{ID: RedeemerUserIDVariable, DisplayName: "Redeemer's user ID"},
-				{ID: RewardIDVariable, DisplayName: "Reward ID"},
-				{ID: RedemptionIDVariable, DisplayName: "Redemption ID"},
-			},
+// RewardSettingKind is a channel point reward, stored as the reward's ID.
+// The designer shows a picker of the user's rewards for it.
+const RewardSettingKind automationsetting.Kind = "twitch.reward"
+
+// Setting IDs for the Twitch triggers.
+const (
+	// RewardSetting is the reward a redeem trigger reacts to.
+	RewardSetting = "reward"
+	// StartsWithSetting is the text a chat message must start with to
+	// trigger the automation, such as "!discord".
+	StartsWithSetting = "startsWith"
+)
+
+// RestOfMessageVariable is the text of a matched chat message after the
+// matched text, such as "coolstreamer" in "!so coolstreamer". The chat
+// message trigger's filter adds it, since it depends on the automation's
+// settings.
+const RestOfMessageVariable = "restOfMessage"
+
+// Triggers returns every trigger the Twitch integration offers.
+func Triggers() []trigger.Trigger {
+	return []trigger.Trigger{redeemTrigger{}, chatMessageTrigger{}, followTrigger{}}
+}
+
+type redeemTrigger struct{}
+
+func (redeemTrigger) Definition() trigger.Definition {
+	return trigger.Definition{
+		ID:          RedeemTriggerID,
+		DisplayName: "Channel point redeem",
+		Settings: []automationsetting.Definition{
+			{ID: RewardSetting, DisplayName: "Reward", Kind: RewardSettingKind, IsRequired: true},
 		},
-		{
-			ID:          ChatMessageTriggerID,
-			DisplayName: "Chat message",
-			Variables: []trigger.VariableDefinition{
-				{ID: SenderDisplayNameVariable, DisplayName: "Sender's name"},
-				{ID: MessageTextVariable, DisplayName: "Message"},
-				{ID: SenderLoginVariable, DisplayName: "Sender's login name"},
-				{ID: SenderUserIDVariable, DisplayName: "Sender's user ID"},
-				{ID: MessageIDVariable, DisplayName: "Message ID"},
-			},
-		},
-		{
-			ID:          FollowTriggerID,
-			DisplayName: "Follow",
-			Variables: []trigger.VariableDefinition{
-				{ID: FollowerDisplayNameVariable, DisplayName: "Follower's name"},
-				{ID: FollowedAtVariable, DisplayName: "Time of follow"},
-				{ID: FollowerLoginVariable, DisplayName: "Follower's login name"},
-				{ID: FollowerUserIDVariable, DisplayName: "Follower's user ID"},
-			},
+		Variables: []trigger.VariableDefinition{
+			{ID: RedeemerDisplayNameVariable, DisplayName: "Redeemer's name"},
+			{ID: UserInputVariable, DisplayName: "Redeemer's message"},
+			{ID: RewardTitleVariable, DisplayName: "Reward name"},
+			{ID: RewardCostVariable, DisplayName: "Reward cost"},
+			{ID: RewardPromptVariable, DisplayName: "Reward description"},
+			{ID: RedeemedAtVariable, DisplayName: "Time of redeem"},
+			{ID: RedeemerLoginVariable, DisplayName: "Redeemer's login name"},
+			{ID: RedeemerUserIDVariable, DisplayName: "Redeemer's user ID"},
+			{ID: RewardIDVariable, DisplayName: "Reward ID"},
+			{ID: RedemptionIDVariable, DisplayName: "Redemption ID"},
 		},
 	}
+}
+
+// Filter matches redeems of the automation's reward. Twitch delivers every
+// redeem through one subscription, so this is where redeems are told apart;
+// see docs/design/twitch-eventsub.md#subscriptions.
+func (redeemTrigger) Filter(event trigger.Event, settings automationsetting.Values) (map[string]string, bool, error) {
+	rewardID, err := settings.Text(RewardSetting)
+	if err != nil {
+		return nil, false, fmt.Errorf("reading the redeem trigger's settings: %w", err)
+	}
+	if event.TriggerID != RedeemTriggerID || event.Variables[RewardIDVariable] != rewardID {
+		return nil, false, nil
+	}
+	return maps.Clone(event.Variables), true, nil
+}
+
+type chatMessageTrigger struct{}
+
+func (chatMessageTrigger) Definition() trigger.Definition {
+	return trigger.Definition{
+		ID:          ChatMessageTriggerID,
+		DisplayName: "Chat message",
+		Settings: []automationsetting.Definition{
+			{ID: StartsWithSetting, DisplayName: "Starts with", Kind: automationsetting.KindText, IsRequired: true},
+		},
+		Variables: []trigger.VariableDefinition{
+			{ID: SenderDisplayNameVariable, DisplayName: "Sender's name"},
+			{ID: MessageTextVariable, DisplayName: "Message"},
+			{ID: RestOfMessageVariable, DisplayName: "Rest of the message", IsAddedByFilter: true},
+			{ID: SenderLoginVariable, DisplayName: "Sender's login name"},
+			{ID: SenderUserIDVariable, DisplayName: "Sender's user ID"},
+			{ID: MessageIDVariable, DisplayName: "Message ID"},
+		},
+	}
+}
+
+// Filter matches messages that start with the automation's text, following
+// docs/design/twitch-eventsub.md#chat-messages, and adds the rest of the
+// message.
+func (chatMessageTrigger) Filter(event trigger.Event, settings automationsetting.Values) (map[string]string, bool, error) {
+	startText, err := settings.Text(StartsWithSetting)
+	if err != nil {
+		return nil, false, fmt.Errorf("reading the chat message trigger's settings: %w", err)
+	}
+	startText = strings.TrimSpace(startText)
+	if startText == "" {
+		// An empty start would match every message, which no one means.
+		return nil, false, fmt.Errorf("reading the chat message trigger's settings: %w: %q is blank", automationsetting.ErrSettingMissing, StartsWithSetting)
+	}
+	if event.TriggerID != ChatMessageTriggerID {
+		return nil, false, nil
+	}
+	restOfMessage, isMatch := matchStartOfMessage(event.Variables[MessageTextVariable], startText)
+	if !isMatch {
+		return nil, false, nil
+	}
+	variables := maps.Clone(event.Variables)
+	variables[RestOfMessageVariable] = restOfMessage
+	return variables, true, nil
+}
+
+// matchStartOfMessage reports whether message starts with startText,
+// ignoring capitalization, as a whole word: "!a1" matches "!a1 please" but
+// not "!a10". It compares rune by rune rather than slicing message to
+// startText's length, because a letter and its other case can take a
+// different number of bytes.
+func matchStartOfMessage(message string, startText string) (restOfMessage string, isMatch bool) {
+	remainingMessage := message
+	for _, startRune := range startText {
+		messageRune, runeSize := utf8.DecodeRuneInString(remainingMessage)
+		if runeSize == 0 || !strings.EqualFold(string(startRune), string(messageRune)) {
+			return "", false
+		}
+		remainingMessage = remainingMessage[runeSize:]
+	}
+	nextRune, nextRuneSize := utf8.DecodeRuneInString(remainingMessage)
+	if nextRuneSize > 0 && !unicode.IsSpace(nextRune) {
+		return "", false
+	}
+	return strings.TrimLeftFunc(remainingMessage, unicode.IsSpace), true
+}
+
+type followTrigger struct{}
+
+func (followTrigger) Definition() trigger.Definition {
+	return trigger.Definition{
+		ID:          FollowTriggerID,
+		DisplayName: "Follow",
+		Variables: []trigger.VariableDefinition{
+			{ID: FollowerDisplayNameVariable, DisplayName: "Follower's name"},
+			{ID: FollowedAtVariable, DisplayName: "Time of follow"},
+			{ID: FollowerLoginVariable, DisplayName: "Follower's login name"},
+			{ID: FollowerUserIDVariable, DisplayName: "Follower's user ID"},
+		},
+	}
+}
+
+// Filter matches every follow, since the follow trigger has no settings.
+func (followTrigger) Filter(event trigger.Event, settings automationsetting.Values) (map[string]string, bool, error) {
+	if event.TriggerID != FollowTriggerID {
+		return nil, false, nil
+	}
+	return maps.Clone(event.Variables), true, nil
 }
 
 type redemptionEvent struct {

@@ -194,7 +194,7 @@ Run history is stored in files, one per day, at `<user config folder>/whendo/run
 
 | Package | Contains |
 |---|---|
-| `engine/setting` | Setting definitions, kinds, variable references and templates. Shared by triggers and steps. |
+| `engine/automationsetting` | Setting definitions, kinds, variable references and templates. Shared by triggers and steps. |
 | `engine/trigger` | The trigger contract, now with settings and filters. |
 | `engine/step` | The step contract. |
 | `engine/automation` | The automation model, the file format, validation and which variables are available. |

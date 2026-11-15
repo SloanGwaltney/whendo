@@ -198,7 +198,8 @@ func TestTriggers_DeclareExactlyTheVariablesTheirEventsProvide(t *testing.T) {
 		sampleEvents[event.TriggerID] = event
 	}
 
-	for _, definition := range twitcheventsub.Triggers() {
+	for _, twitchTrigger := range twitcheventsub.Triggers() {
+		definition := twitchTrigger.Definition()
 		event, hasSample := sampleEvents[definition.ID]
 		if !hasSample {
 			t.Errorf("trigger %q has no sample event", definition.ID)
@@ -206,6 +207,9 @@ func TestTriggers_DeclareExactlyTheVariablesTheirEventsProvide(t *testing.T) {
 		}
 		var declaredIDs []string
 		for _, variable := range definition.Variables {
+			if variable.IsAddedByFilter {
+				continue
+			}
 			declaredIDs = append(declaredIDs, variable.ID)
 		}
 		providedIDs := slices.Collect(maps.Keys(event.Variables))
