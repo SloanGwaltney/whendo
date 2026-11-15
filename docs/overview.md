@@ -78,6 +78,7 @@ That means:
 - **[MVP User Redeems](design/mvp-user-redeems.md):** our first user's redeems, the capabilities the MVP needs to support them, and how the TTS Monster integration works.
 - **[Twitch Login](design/twitch-login.md):** the device code flow, scopes, how tokens are refreshed and validated, and where they're stored.
 - **[Twitch EventSub](design/twitch-eventsub.md):** how Whendo receives redeems, chat messages and follows: triggers and their variables, subscriptions, the connection and reconnecting, and connection status.
+- **[Automation Engine](design/automation-engine.md):** how events become runs: trigger settings and filters, the step contract, variables and templates, queuing, the automation file format and run history files.
 
 ### Architecture
 - **[Twitch Login: How the Code Works](architecture/twitch-login.md):** the login code's parts, its public functions, and diagrams of logging in, refreshing, validating and logging out.

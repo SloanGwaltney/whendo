@@ -7,7 +7,7 @@ How Whendo receives events from Twitch, such as redeems, chat messages and follo
 
 ## Triggers and Event Sources
 
-- **The engine defines the contract, not the events.** A trigger has an ID, a name and a list of the variables it provides. An event says which trigger fired and carries a value for each of those variables. The engine only handles that generic shape.
+- **The engine defines the contract, not the events.** A trigger has an ID, a name, its settings, a filter that checks events against those settings, and a list of the variables it provides; see [Automation Engine](automation-engine.md#triggers). An event says which trigger fired and carries a value for each of those variables. The engine only handles that generic shape.
 - **Each integration defines its own triggers.** The Twitch integration declares "redeem," "chat message starts with" and "follow." A future integration for another platform declares its own, and nothing forces them to match Twitch's, because no event is guaranteed to exist on every platform.
 - **Twitch's data stays in the Twitch integration.** The integration translates each EventSub notification into one of its own triggers. The engine never sees Twitch's JSON, so when Twitch changes or retires a subscription version, only the integration changes.
 - **Everything in the event becomes a variable.** Nothing is hidden from the user, including IDs. The only limit is how the designer presents them, for example by showing common variables first and IDs under "more." Steps take variables as inputs, so "refund a redemption" takes the redemption ID variable and "only from a specific user" takes a user ID variable.

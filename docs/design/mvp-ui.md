@@ -43,7 +43,7 @@ Twitch only lets an app edit redeems that the same app created, so redeems fall 
 ### Run History
 A table with one row for every time any automation is triggered. Each row shows the automation's name, when it was triggered, its status and, for failures, the reason.
 
-- **Statuses:** queued, running, succeeded or failed. Test runs are marked as tests.
+- **Statuses:** queued, running, succeeded, failed or cancelled. Cancelled runs were removed from the queue when their automation was disabled or deleted, or were interrupted by Whendo shutting down. Test runs are marked as tests.
 - **Failures:** a failed run shows which step failed and why.
 - **Run details:** opening a run shows each step it executed, in order, with that step's outcome. For steps that split, this includes which branch the run took. This makes it possible to debug runs that succeeded but didn't do what was expected, for example when "wait for a reply" timed out. The table itself stays simple; the step details appear only when a run is opened.
 - **Retention:** runs are kept for a set number of days rather than a fixed count. The default is 30 days.
@@ -90,6 +90,10 @@ Variables come from:
 - Each automation has its own queue.
 - An automation processes one run at a time. A trigger that arrives while the automation is running is queued and runs afterward, in order.
 - Different automations run in parallel with each other.
+- Disabling an automation empties its queue. A run already in progress finishes.
+- Edits apply right away: each run uses the automation as it is when the run starts.
+
+See [Automation Engine](automation-engine.md#runs-and-queues) for the details.
 
 ### Test Runs
 Any automation can be run by hand with made-up trigger values. Streamers use this to check an automation before going live, and developers use it to test without real Twitch events, such as redeems on an account without channel points.
