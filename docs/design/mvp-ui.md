@@ -61,6 +61,8 @@ An automation has one **trigger** and a sequence of **steps**. MVP triggers are 
 
 A chat message only matches when it **starts with** the text. A match anywhere in the message would let Whendo react to its own posts, for example when Do a Voice's prompt lists `!a1` and the next step is waiting for `!a1`. Whendo doesn't try to prevent every loop a user could build, since that would mean analyzing every combination of steps, but this rule removes the common case.
 
+Matching ignores capitalization and compares whole words, so `!a1` matches "!a1 please" but not "!a10." Only messages from the streamer's own chat count, not other channels in a shared chat session. See [Twitch EventSub](twitch-eventsub.md#chat-messages) for the details.
+
 The filter lives in the trigger rather than in a step. A trigger for every chat message followed by an "if it starts with" step would create a run for every message, so real runs would queue behind runs that do nothing and run history would fill with noise.
 
 ### Branching
@@ -79,7 +81,7 @@ A future version might add a "when an automation fails" trigger so users can han
 Users never create or name variables themselves. Every variable available at a given step is determined automatically, and the user picks one by name to insert it into a sentence, as in "say thanks, *redeemer name*."
 
 Variables come from:
-- **The trigger.** Each trigger declares up front which variables it provides. A redeem provides the redeemer's name and the text they entered, a follow provides the follower's name, and a chat message provides the sender's name and the rest of the message.
+- **The trigger.** Each trigger declares up front which variables it provides, and everything in the event is made available, including IDs. The designer shows the common ones first, such as the redeemer's name and the text they entered. See [Twitch EventSub](twitch-eventsub.md#trigger-variables) for each Twitch trigger's variables.
 - **Earlier steps on the same path.** For example, "wait for a reply" provides the reply's text inside its "replied" branch.
 
 **After a split:** when branches rejoin the main sequence, only the variables that *every* branch provides remain available. A variable that exists in only some branches can't be used after the split, because it might not have a value.
@@ -99,8 +101,7 @@ Any automation can be run by hand with made-up trigger values. Streamers use thi
 - **Disabled automations can be tested,** so an automation can be checked before it's turned on.
 - **Run history marks test runs,** so they aren't mistaken for real activity.
 
-In the engine, a test run is an event from another source, alongside Twitch. The engine runs it exactly as it would a real event; the only difference is the test mark in run history. Test runs don't check the connection to Twitch, since they start after it.
+In the engine, a test run fires an existing trigger with values from the form instead of from Twitch. It isn't a source with triggers of its own. The engine runs it exactly as it would a real event; the only difference is the test mark in run history. Test runs don't check the connection to Twitch, since they start after it.
 
 ## Open Questions
 - **Sample automations:** which three or four samples should ship with the app?
-- **Chat message matching:** whether matching ignores capitalization, and whether `!a1` should match a message starting with `!a10`.

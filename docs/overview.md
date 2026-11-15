@@ -71,13 +71,14 @@ That means:
 - **[ADR 0001: Go and Wails v3](adr/0001-go-and-wails-for-desktop-app.md):** why we chose Go and Wails over Electron and Tauri, and the risks we accepted.
 - **[ADR 0002: Svelte 5](adr/0002-svelte-for-frontend.md):** why we chose Svelte over plain TypeScript, React, Vue, Astro and HTMX, including the cost of a smaller ecosystem.
 - **[ADR 0003: go-keyring](adr/0003-go-keyring-for-credential-storage.md):** why we store secrets in the operating system's credential store through go-keyring rather than our own platform bindings.
+- **[ADR 0004: coder/websocket](adr/0004-coder-websocket-for-eventsub.md):** why we use the WebSocket library already in our build through Wails for Twitch EventSub.
 
 ### Design
 - **[MVP UI Design](design/mvp-ui.md):** the screens, navigation, and the automation model (branching, failures, variables and queuing).
 - **[MVP User Redeems](design/mvp-user-redeems.md):** our first user's redeems, the capabilities the MVP needs to support them, and how the TTS Monster integration works.
 - **[Twitch Login](design/twitch-login.md):** the device code flow, scopes, how tokens are refreshed and validated, and where they're stored.
+- **[Twitch EventSub](design/twitch-eventsub.md):** how Whendo receives redeems, chat messages and follows: triggers and their variables, subscriptions, the connection and reconnecting, and connection status.
 
 ## Open Questions
 - **Sample automations:** which three or four samples should ship with the app? See [MVP UI Design](design/mvp-ui.md#open-questions).
-- **Chat message matching:** whether chat triggers ignore capitalization, and whether `!a1` matches `!a10`. See [MVP UI Design](design/mvp-ui.md#open-questions).
 - **TTS Monster:** the audio format, and whether TTS Monster accepts Whendo using the overlay method. See [MVP User Redeems](design/mvp-user-redeems.md#what-is-still-unverified).
