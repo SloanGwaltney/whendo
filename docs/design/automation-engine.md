@@ -189,6 +189,7 @@ Run history is stored in files, one per day, at `<user config folder>/whendo/run
 - **A run is written once, when it ends.** Queued and running runs are kept in memory and shown from there. A run in progress when Whendo crashes is lost from history. That's acceptable for the MVP, and much simpler than updating records in place.
 - **Each record holds** the automation's ID and its name at the time, whether it was a test, the trigger's variables, when it was queued, started and ended, its status, and each step it ran with its outcome or failure reason.
 - **The day is the day the run ended,** in local time, since that's what the streamer will look for.
+- **A line a crash cut short** is skipped when reading, and the next write starts on a new line, so the damage never spreads past that one record.
 - **Retention** deletes files older than the retention period, 30 days by default. It runs at startup and once a day after that.
 - **No database.** Run history is written once and read newest first, a day at a time. Files do that with the standard library alone. SQLite would be another dependency, and its strengths, such as queries and updates, aren't needed here.
 
