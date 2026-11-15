@@ -79,6 +79,9 @@ That means:
 - **[Twitch Login](design/twitch-login.md):** the device code flow, scopes, how tokens are refreshed and validated, and where they're stored.
 - **[Twitch EventSub](design/twitch-eventsub.md):** how Whendo receives redeems, chat messages and follows: triggers and their variables, subscriptions, the connection and reconnecting, and connection status.
 
+### Architecture
+- **[Twitch Login: How the Code Works](architecture/twitch-login.md):** the login code's parts, its public functions, and diagrams of logging in, refreshing, validating and logging out.
+
 ## Open Questions
 - **Sample automations:** which three or four samples should ship with the app? See [MVP UI Design](design/mvp-ui.md#open-questions).
 - **TTS Monster:** the audio format, and whether TTS Monster accepts Whendo using the overlay method. See [MVP User Redeems](design/mvp-user-redeems.md#what-is-still-unverified).
