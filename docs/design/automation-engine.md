@@ -171,7 +171,9 @@ Each automation is one JSON file at `<user config folder>/whendo/automations/<au
 
 - **`formatVersion`** lets a later version of Whendo recognize and upgrade older files.
 - **`afterBranch`** is either `end` or `continue`; see [Branching](mvp-ui.md#branching).
-- **IDs** are random, made from 16 bytes of `crypto/rand` written as hex. No dependency is needed.
+- **Automation IDs** are random, made by `crypto/rand.Text`. No dependency is needed. Because an ID names a file, Whendo only accepts IDs of up to 64 letters, digits, hyphens and underscores, so an ID can never point outside the automations folder.
+- **Step and choice IDs** only need to be unique within their automation or setting, so the designer can make them itself.
+- **A file whose name doesn't match the ID inside it** can't be loaded. Saving it again would otherwise create a second copy under the right name.
 - **Writes are atomic.** Whendo writes to a temporary file in the same folder and renames it over the old one, so a crash mid-write never leaves a half-written automation.
 - **Automations are read once at startup.** Editing the files by hand while Whendo runs isn't supported.
 
