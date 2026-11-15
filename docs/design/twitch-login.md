@@ -1,7 +1,7 @@
 # Twitch Login
 
 - **Status:** Draft
-- **Last updated:** 2026-11-14
+- **Last updated:** 2026-11-15
 
 How Whendo logs users in to Twitch and keeps them logged in. Login is part of the engine, not the Wails layer. Wails only displays the code and verification link and opens the browser.
 
@@ -33,7 +33,7 @@ Request every scope the MVP needs at first login. Adding scopes later forces the
 |---|---|
 | `channel:read:redemptions` | Receiving redeem events and listing redeems |
 | `channel:manage:redemptions` | Creating and editing Whendo redeems, refunding and fulfilling redemptions |
-| `user:read:chat` | Receiving chat messages, for chat commands and "wait for a chat command" |
+| `user:read:chat` | Receiving chat messages, for the chat message trigger and the "wait for a chat message" step |
 | `user:write:chat` | Posting chat messages as the streamer |
 | `moderator:read:followers` | Receiving follow events |
 

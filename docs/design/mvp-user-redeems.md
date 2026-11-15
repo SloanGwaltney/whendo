@@ -1,7 +1,7 @@
 # MVP User Redeems
 
 - **Status:** Draft
-- **Last updated:** 2026-11-14
+- **Last updated:** 2026-11-15
 
 These are the channel point redeems used by our first MVP user. **The MVP must be able to build every redeem in this document that needs Whendo.** Redeems that Twitch handles entirely by itself are listed so the inventory is complete, but they don't need any automation.
 
@@ -66,7 +66,7 @@ Building the redeems above requires the following.
 - **Check a condition**, such as "the roll is 20." This step has two outcomes, one for when the condition is true and one for when it's false.
 - **Wait** for a set amount of time.
 - **Show or hide an OBS source.**
-- **Wait for a chat command** from a list of choices, with a time limit, optionally accepting it only from a specific user such as the redeemer. This step has one outcome per command, plus one for timing out.
+- **Wait for a chat message** that starts with one of a list of choices, such as `!a1` or `!a2`, with a time limit, optionally accepting it only from a specific user such as the redeemer. This step has one outcome per choice, plus one for timing out. Matching follows the same "starts with" rule as the chat message trigger; see [MVP UI Design](mvp-ui.md#structure).
 - **Refund a redemption.**
 - **Mark a redemption as fulfilled.**
 - **Play TTS Monster speech.** Generate the audio for a message and play it on the chosen output device. See [TTS Monster](#tts-monster).
@@ -126,14 +126,13 @@ The response looks like `{ "status": ..., "message": { "plan": { "name": ... }, 
 
 ## Testing Redeems Without Channel Points
 
-The maintainer's Twitch account isn't monetized, so it has no channel point redeems to test with. Before redeem support is built, developers need a way to trigger a **simulated redeem** and run automations against it.
+The maintainer's Twitch account isn't monetized, so it has no channel point redeems to test with. [Test runs](mvp-ui.md#test-runs) cover this. Any automation can be run by hand with a made-up reward, redeemer name and user input, and the run goes through the engine exactly like a real redeem: queuing, variables, branches and run history.
 
-Requirements:
-- **Simulate the trigger.** A developer can fire a fake redeem event with a chosen reward, redeemer name and user input. It flows through the engine exactly like a real one: queuing, variables, branches and run history.
-- **Simulate the redemption actions too.** Refunding and fulfilling a redemption call Twitch's API, which will fail for a reward that doesn't exist. Simulated redemptions need a fake implementation of those actions so automations like Do a Voice can run end to end.
-- **Developer use at minimum.** It might later become a user-facing "test this automation" feature, but that isn't required.
+Test runs are a user feature, not only a developer tool, because streamers also want to check an automation before going live.
 
-This isn't designed yet; work it out when redeem support is built. One option to evaluate then is the [Twitch CLI](https://dev.twitch.tv/docs/cli/), which can send mock EventSub events, including channel point redemptions, to a local mock server.
+Refunding and fulfilling a redemption call Twitch's API, which fails for a redemption that doesn't exist. In a test run, those steps fail on purpose rather than being faked. In Do a Voice they're the last step, so a test run still shows that everything before them worked.
+
+Test runs don't check Whendo's connection to Twitch. One option for testing that code is the [Twitch CLI](https://dev.twitch.tv/docs/cli/), which can send mock EventSub events, including channel point redemptions, to a local mock server.
 
 ## Constraints
 

@@ -1,6 +1,6 @@
 # Whendo Overview
 
-- **Last updated:** 2026-11-14
+- **Last updated:** 2026-11-15
 
 This is the starting point for understanding Whendo. It explains what the project is and why it exists, and links to the documents that cover each area in detail.
 
@@ -37,6 +37,7 @@ Streamers also often end up chaining several tools together. For example, our fi
 - **No variables to manage.** The values available at each step, such as the redeemer's name or a dice roll, are determined automatically. The user picks one by name to insert it into a sentence.
 - **Predictable runs.** Each automation runs one at a time, and new triggers queue behind the current run. Different automations run in parallel.
 - **Simple failures.** If a step fails, the run ends and run history shows which step failed and why.
+- **Test runs.** Any automation can be run by hand with made-up values, to check it before going live. It runs exactly like a real trigger.
 - **Nothing changes in the user's Twitch account without their agreement.**
 
 See [MVP UI Design](design/mvp-ui.md#automation-model) for the full automation model.
@@ -78,5 +79,5 @@ That means:
 
 ## Open Questions
 - **Sample automations:** which three or four samples should ship with the app? See [MVP UI Design](design/mvp-ui.md#open-questions).
-- **Testing redeems without channel points:** how developers simulate redeems, since the maintainer's account has none. To be designed when redeem support is built. See [MVP User Redeems](design/mvp-user-redeems.md#testing-redeems-without-channel-points).
+- **Chat message matching:** whether chat triggers ignore capitalization, and whether `!a1` matches `!a10`. See [MVP UI Design](design/mvp-ui.md#open-questions).
 - **TTS Monster:** the audio format, and whether TTS Monster accepts Whendo using the overlay method. See [MVP User Redeems](design/mvp-user-redeems.md#what-is-still-unverified).
