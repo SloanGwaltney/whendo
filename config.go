@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -35,4 +37,21 @@ func twitchClientID() string {
 		return defaultTwitchClientID
 	}
 	return overrideClientID
+}
+
+// Whendo keeps its files in the operating system's per-user config folder,
+// which is %AppData% on Windows.
+const (
+	dataFolderName        = "whendo"
+	automationsFolderName = "automations"
+	runHistoryFolderName  = "run-history"
+)
+
+// dataFolder returns the folder Whendo keeps its files in.
+func dataFolder() (string, error) {
+	userConfigFolder, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("finding the user config folder: %w", err)
+	}
+	return filepath.Join(userConfigFolder, dataFolderName), nil
 }

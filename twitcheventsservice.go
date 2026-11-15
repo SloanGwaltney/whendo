@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
-	"github.com/SloanGwaltney/whendo/engine/trigger"
 	"github.com/SloanGwaltney/whendo/engine/twitcheventsub"
 )
 
@@ -31,15 +29,4 @@ func (service *TwitchEventsService) ServiceStartup(ctx context.Context, options 
 // GetConnectionState returns the current EventSub connection state.
 func (service *TwitchEventsService) GetConnectionState() twitcheventsub.ConnectionState {
 	return service.listener.State()
-}
-
-// loggingEventReceiver logs every trigger event it receives. It stands in
-// for the automation engine until that exists, so events can be seen
-// arriving while testing.
-type loggingEventReceiver struct {
-	logger *slog.Logger
-}
-
-func (receiver *loggingEventReceiver) ReceiveEvent(event trigger.Event) {
-	receiver.logger.Info("received a Twitch event", "trigger", event.TriggerID, "variables", event.Variables)
 }

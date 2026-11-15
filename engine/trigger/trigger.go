@@ -51,8 +51,8 @@ type Event struct {
 	Variables map[string]string
 }
 
-// Receiver accepts events from an integration. The automation engine
-// implements it; until it exists, the app logs the events it receives.
+// Receiver accepts events from an integration. The automation engine's
+// runner implements it.
 type Receiver interface {
 	ReceiveEvent(event Event)
 }
