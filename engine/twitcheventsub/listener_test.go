@@ -78,6 +78,9 @@ func newFakeEventSub(t *testing.T) *fakeEventSub {
 	mux.HandleFunc("/ws", fake.handleWebSocket)
 	mux.HandleFunc("POST /helix/eventsub/subscriptions", fake.handleSubscribe)
 	mux.HandleFunc("POST /oauth2/token", fake.handleRefresh)
+	mux.HandleFunc("POST /oauth2/revoke", func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusOK)
+	})
 	fake.server = httptest.NewServer(mux)
 	t.Cleanup(fake.server.Close)
 	return fake
@@ -245,20 +248,29 @@ func (store *memoryCredentialStore) Delete(name string) error {
 	return nil
 }
 
-// newLoggedInSession returns a real Twitch session, restored from a stored
-// login and pointed at the fake server.
-func newLoggedInSession(t *testing.T, fake *fakeEventSub) *twitchauth.Session {
-	t.Helper()
-	store := &memoryCredentialStore{secrets: map[string]string{
+func storedLogin() map[string]string {
+	return map[string]string{
 		"twitch-access-token":    testAccessToken,
 		"twitch-refresh-token":   storedRefreshToken,
 		"twitch-account-login":   "cool_user",
 		"twitch-account-user-id": broadcasterUserID,
-	}}
-	session := twitchauth.NewSession(twitchauth.SessionConfig{
+	}
+}
+
+// newSession returns a real Twitch session that uses store and the fake
+// server.
+func newSession(fake *fakeEventSub, store *memoryCredentialStore) *twitchauth.Session {
+	return twitchauth.NewSession(twitchauth.SessionConfig{
 		Client:          twitchauth.NewClient(testClientID, fake.server.URL, fake.server.Client()),
 		CredentialStore: store,
 	})
+}
+
+// newLoggedInSession returns a real Twitch session, restored from a stored
+// login and pointed at the fake server.
+func newLoggedInSession(t *testing.T, fake *fakeEventSub) *twitchauth.Session {
+	t.Helper()
+	session := newSession(fake, &memoryCredentialStore{secrets: storedLogin()})
 	err := session.Restore()
 	if err != nil {
 		t.Fatalf("restoring the session: %v", err)
@@ -560,5 +572,58 @@ func TestListenerRun_ReturnsNilWhenContextIsCancelled(t *testing.T) {
 	err := subject.awaitRunResult(t)
 	if err != nil {
 		t.Errorf("got error %v, want nil", err)
+	}
+}
+
+func TestListenerRunWhileLoggedIn_ConnectsOnLoginAndDisconnectsOnLogout(t *testing.T) {
+	fake := newFakeEventSub(t)
+	store := &memoryCredentialStore{secrets: map[string]string{}}
+	session := newSession(fake, store)
+	listener := twitcheventsub.NewListener(twitcheventsub.ListenerConfig{
+		ClientID:     testClientID,
+		Session:      session,
+		Receiver:     &eventCollector{events: make(chan trigger.Event, 16)},
+		WebSocketURL: fake.webSocketURL(),
+		HelixBaseURL: fake.server.URL + "/helix",
+		HTTPClient:   fake.server.Client(),
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	runFinished := make(chan struct{})
+	go func() {
+		listener.RunWhileLoggedIn(ctx)
+		close(runFinished)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-runFinished
+	})
+
+	const loggedOutWait = 300 * time.Millisecond
+	select {
+	case <-fake.acceptedSockets:
+		t.Fatal("connected to EventSub while logged out")
+	case <-time.After(loggedOutWait):
+	}
+
+	for name, secret := range storedLogin() {
+		err := store.Set(name, secret)
+		if err != nil {
+			t.Fatalf("storing the login: %v", err)
+		}
+	}
+	err := session.Restore()
+	if err != nil {
+		t.Fatalf("restoring the session: %v", err)
+	}
+	socket := fake.awaitSocket(t)
+
+	err = session.Logout(context.Background())
+	if err != nil {
+		t.Fatalf("logging out: %v", err)
+	}
+	select {
+	case <-socket.closedByClient.Done():
+	case <-time.After(waitTimeout):
+		t.Error("the EventSub connection stayed open after logout")
 	}
 }

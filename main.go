@@ -3,12 +3,14 @@ package main
 import (
 	"embed"
 	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/SloanGwaltney/whendo/engine/credentials"
 	"github.com/SloanGwaltney/whendo/engine/twitchauth"
+	"github.com/SloanGwaltney/whendo/engine/twitcheventsub"
 )
 
 // Wails uses Go's `embed` package to embed the frontend files into the binary.
@@ -23,20 +25,33 @@ func init() {
 	// Registering the event lets the binding generator give the frontend a
 	// typed API for it.
 	application.RegisterEvent[twitchauth.LoginState](twitchLoginStateChangedEvent)
+	application.RegisterEvent[twitcheventsub.ConnectionState](twitchConnectionStateChangedEvent)
 }
 
 // main function serves as the application's entry point. It initializes the application, creates a window,
 // then runs the application and logs any error that might occur.
 func main() {
-	// The session reports state changes from the moment the app starts, so it
-	// needs the app, which is created below.
+	// The session and the listener report state changes from the moment the
+	// app starts, so they need the app, which is created below. The same goes
+	// for the window, which a second launch brings forward.
 	var app *application.App
+	var mainWindow *application.WebviewWindow
+	twitchHTTPClient := &http.Client{Timeout: twitchRequestTimeout}
 	twitchSession := twitchauth.NewSession(twitchauth.SessionConfig{
-		Client:          twitchauth.NewClient(twitchClientID(), twitchauth.DefaultIdentityBaseURL, &http.Client{Timeout: twitchRequestTimeout}),
+		Client:          twitchauth.NewClient(twitchClientID(), twitchauth.DefaultIdentityBaseURL, twitchHTTPClient),
 		CredentialStore: credentials.NewKeyringStore(credentialServiceName),
 	})
 	twitchSession.AddStateListener(func(state twitchauth.LoginState) {
 		app.Event.Emit(twitchLoginStateChangedEvent, state)
+	})
+	twitchListener := twitcheventsub.NewListener(twitcheventsub.ListenerConfig{
+		ClientID: twitchClientID(),
+		Session:  twitchSession,
+		Receiver: &loggingEventReceiver{logger: slog.Default()},
+		OnStateChange: func(state twitcheventsub.ConnectionState) {
+			app.Event.Emit(twitchConnectionStateChangedEvent, state)
+		},
+		HTTPClient: twitchHTTPClient,
 	})
 
 	// Create a new Wails application by providing the necessary options.
@@ -48,7 +63,20 @@ func main() {
 		Name:        "whendo",
 		Description: "A demo of using raw HTML & CSS",
 		Services: []application.Service{
+			// The login service is listed first so the stored login is
+			// restored before the events service starts.
 			application.NewService(&TwitchLoginService{session: twitchSession}),
+			application.NewService(&TwitchEventsService{listener: twitchListener}),
+		},
+		// Two copies would each run every automation and use up Twitch's
+		// connection limit, so a second launch brings the first forward.
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: singleInstanceID,
+			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
+				mainWindow.UnMinimise()
+				mainWindow.Show()
+				mainWindow.Focus()
+			},
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -63,7 +91,7 @@ func main() {
 	// 'Mac' options tailor the window when running on macOS.
 	// 'BackgroundColour' is the background colour of the window.
 	// 'URL' is the URL that will be loaded into the webview.
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	mainWindow = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title: "Window 1",
 		// Window sized to the golden ratio (1000 / 618 ≈ 1.618).
 		Width:  1000,

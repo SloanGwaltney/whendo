@@ -166,6 +166,80 @@ func (listener *Listener) Run(ctx context.Context) error {
 	}
 }
 
+// RunWhileLoggedIn runs the listener whenever the session is logged in, and
+// stops it when the user logs out, until ctx is cancelled. Call it once.
+func (listener *Listener) RunWhileLoggedIn(ctx context.Context) {
+	loginChanges := make(chan struct{}, 1)
+	listener.session.AddStateListener(func(twitchauth.LoginState) {
+		// The session calls this while locked, so it only signals. The loop
+		// below reads the state itself.
+		select {
+		case loginChanges <- struct{}{}:
+		default:
+		}
+	})
+
+	var running *runningListener
+	defer func() {
+		if running != nil {
+			running.stop()
+		}
+	}()
+	for {
+		isLoggedIn := listener.session.State().Status == twitchauth.LoginStatusLoggedIn
+		if isLoggedIn && running == nil {
+			running = listener.startRunning(ctx)
+		}
+		if !isLoggedIn && running != nil {
+			running.stop()
+			running = nil
+		}
+
+		// finished is nil while nothing is running, and receiving from a nil
+		// channel never succeeds.
+		var finished <-chan struct{}
+		if running != nil {
+			finished = running.finished
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-loginChanges:
+		case <-finished:
+			// Run stops by itself only when Twitch revoked access, which also
+			// logged the user out, so it isn't restarted until the next login.
+			running.stop()
+			running = nil
+		}
+	}
+}
+
+// runningListener is one call to Run in the background.
+type runningListener struct {
+	cancel   context.CancelFunc
+	finished chan struct{}
+}
+
+func (listener *Listener) startRunning(ctx context.Context) *runningListener {
+	runContext, cancel := context.WithCancel(ctx)
+	running := &runningListener{cancel: cancel, finished: make(chan struct{})}
+	go func() {
+		defer close(running.finished)
+		err := listener.Run(runContext)
+		if err != nil {
+			listener.logger.Info("stopped receiving Twitch events", "reason", err)
+		}
+	}()
+	return running
+}
+
+// stop cancels Run and waits for it to return, so two calls to Run never
+// overlap.
+func (running *runningListener) stop() {
+	running.cancel()
+	<-running.finished
+}
+
 // runSession connects, subscribes and receives events until the connection
 // drops. It reports whether the session got as far as subscribing.
 func (listener *Listener) runSession(ctx context.Context, connectURL string) (bool, error) {

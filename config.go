@@ -18,6 +18,11 @@ const twitchClientIDEnvironmentVariable = "WHENDO_TWITCH_CLIENT_ID"
 // login or refresh forever.
 const twitchRequestTimeout = 30 * time.Second
 
+// singleInstanceID identifies Whendo to the operating system so a second
+// launch can find the running copy. It matches the product identifier in
+// build/config.yml.
+const singleInstanceID = "io.github.sloangwaltney.whendo"
+
 // credentialServiceName groups Whendo's secrets in the operating system's
 // credential manager.
 const credentialServiceName = "Whendo"

@@ -9,6 +9,11 @@ import type {} from "../github.com/wailsapp/wails/v3/internal/eventdata.js";
 import "../github.com/wailsapp/wails/v3/internal/eventcreate.js";
 
 /**
+ * Name of the custom event "twitch-connection-state-changed".
+ */
+export const TwitchConnectionStateChanged = "twitch-connection-state-changed";
+
+/**
  * Name of the custom event "twitch-login-state-changed".
  */
 export const TwitchLoginStateChanged = "twitch-login-state-changed";

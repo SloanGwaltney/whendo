@@ -8,10 +8,14 @@ import type { Events } from "@wailsio/runtime";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import type * as twitchauth$0 from "../../../../SloanGwaltney/whendo/engine/twitchauth/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import type * as twitcheventsub$0 from "../../../../SloanGwaltney/whendo/engine/twitcheventsub/models.js";
 
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "twitch-connection-state-changed": twitcheventsub$0.ConnectionState;
             "twitch-login-state-changed": twitchauth$0.LoginState;
         }
     }

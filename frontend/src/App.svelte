@@ -4,6 +4,7 @@
   import {TwitchLoginService} from "../bindings/github.com/SloanGwaltney/whendo";
   import {LoginStatus} from "../bindings/github.com/SloanGwaltney/whendo/engine/twitchauth";
   import type {LoginState} from "../bindings/github.com/SloanGwaltney/whendo/engine/twitchauth";
+  import TwitchConnectionStatus from "./TwitchConnectionStatus.svelte";
   import TwitchLogin from "./TwitchLogin.svelte";
 
   let loginState: LoginState | null = $state(null);
@@ -39,6 +40,7 @@
   {:else if loginState.status === LoginStatus.LoginStatusLoggedIn}
     <!-- Placeholder until the Home and Settings screens exist. -->
     <h1 class="title">Logged in as {loginState.accountLogin}</h1>
+    <TwitchConnectionStatus/>
     <button class="btn" onclick={logOut}>Log out</button>
     {#if logoutErrorMessage}
       <p class="subtitle">Logged out, but something went wrong: {logoutErrorMessage}</p>
