@@ -103,10 +103,6 @@ type SessionConfig struct {
 	Client          *Client
 	CredentialStore credentials.Store
 	Logger          *slog.Logger
-	// OnStateChange, if set, is called with the new state each time it
-	// changes. It's called while the Session is locked, so it must not call
-	// back into the Session.
-	OnStateChange func(LoginState)
 }
 
 // Session is the user's Twitch login. It runs the login flow, stores the
@@ -118,7 +114,7 @@ type Session struct {
 	client          *Client
 	credentialStore credentials.Store
 	logger          *slog.Logger
-	onStateChange   func(LoginState)
+	stateListeners  []func(LoginState)
 
 	mutex         sync.Mutex
 	state         LoginState
@@ -145,9 +141,19 @@ func NewSession(config SessionConfig) *Session {
 		client:          config.Client,
 		credentialStore: config.CredentialStore,
 		logger:          logger,
-		onStateChange:   config.OnStateChange,
 		state:           LoginState{Status: LoginStatusLoggedOut},
 	}
+}
+
+// AddStateListener registers listener to be called with the new state each
+// time it changes. Listeners are called while the Session is locked, so that
+// they see changes in order. A listener must therefore return quickly and
+// must not call back into the Session; one that needs to react with more work
+// should hand it to another goroutine.
+func (session *Session) AddStateListener(listener func(LoginState)) {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+	session.stateListeners = append(session.stateListeners, listener)
 }
 
 // State returns the current login state.
@@ -202,7 +208,7 @@ func (session *Session) AccountUserID() (string, error) {
 
 // StartLogin requests a login code from Twitch and waits in the background
 // for the user to approve it. The returned state holds the code and the link
-// to show the user. Later changes are reported through OnStateChange.
+// to show the user. Later changes are reported to the state listeners.
 func (session *Session) StartLogin(ctx context.Context) (LoginState, error) {
 	if session.State().Status == LoginStatusLoggedIn {
 		return LoginState{}, ErrAlreadyLoggedIn
@@ -280,7 +286,11 @@ func (session *Session) AccessToken(ctx context.Context) (string, error) {
 	if !isLoggedIn {
 		return "", ErrNotLoggedIn
 	}
-	if time.Until(token.ExpiresAt) > accessTokenRefreshMargin {
+	// A restored token's expiry is unknown until the first validation. It's
+	// almost always still valid, so it's handed out as is rather than forcing
+	// a refresh at every startup. If Twitch rejects it, the caller renews it.
+	isExpiryUnknown := token.ExpiresAt.IsZero()
+	if isExpiryUnknown || time.Until(token.ExpiresAt) > accessTokenRefreshMargin {
 		return token.AccessToken, nil
 	}
 	return session.refresh(ctx, token.AccessToken)
@@ -292,6 +302,23 @@ func (session *Session) AccessToken(ctx context.Context) (string, error) {
 // refresh too, the user is logged out and ErrNotLoggedIn is returned.
 func (session *Session) RenewAccessToken(ctx context.Context, rejectedAccessToken string) (string, error) {
 	return session.refresh(ctx, rejectedAccessToken)
+}
+
+// EndSessionRevokedByTwitch logs the user out because Twitch revoked
+// Whendo's access, for example because the user disconnected Whendo in their
+// Twitch settings or a scope is missing. Unlike Logout, it doesn't revoke the
+// token, since Twitch no longer accepts it.
+func (session *Session) EndSessionRevokedByTwitch() {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+	if session.state.Status != LoginStatusLoggedIn {
+		return
+	}
+	session.logger.Info("Twitch revoked Whendo's access; the user needs to log in again")
+	err := session.endSession(LogoutReasonSessionEnded)
+	if err != nil {
+		session.logger.Error("couldn't remove the revoked Twitch login", "error", err)
+	}
 }
 
 // KeepValidated checks the login with Twitch immediately and then every hour,
@@ -503,8 +530,8 @@ func (session *Session) stopLoginAttempt() {
 // setState must be called with the mutex held.
 func (session *Session) setState(state LoginState) {
 	session.state = state
-	if session.onStateChange != nil {
-		session.onStateChange(state)
+	for _, listener := range session.stateListeners {
+		listener(state)
 	}
 }
 

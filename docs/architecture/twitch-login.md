@@ -68,6 +68,7 @@ stateDiagram-v2
     WaitingForApproval --> LoggedOut: something fails (reason loginFailed)
     LoggedIn --> LoggedOut: Logout
     LoggedIn --> LoggedOut: Twitch rejects the refresh (reason sessionEnded)
+    LoggedIn --> LoggedOut: EventSub reports access revoked (reason sessionEnded)
 ```
 
 `LoginState` carries what the UI needs for each state:
@@ -78,7 +79,7 @@ stateDiagram-v2
 | `waitingForApproval` | `userCode` and `verificationUri` |
 | `loggedIn` | `accountLogin`, the Twitch username |
 
-Every change is reported through the session's `OnStateChange` callback. `main.go` turns it into the `twitch-login-state-changed` Wails event, which the frontend listens for.
+Every change is reported to the functions registered with `AddStateListener`. One listener, in `main.go`, turns it into the `twitch-login-state-changed` Wails event, which the frontend listens for. Listeners are called while the session is locked, so they see changes in order. That means a listener must return quickly and must never call back into the session; one that needs to do more, such as connecting to EventSub, hands the work to another goroutine.
 
 ## Session Functions
 
@@ -86,14 +87,16 @@ Every change is reported through the session's `OnStateChange` callback. `main.g
 |---|---|
 | `NewSession(config)` | Creates a logged-out session. |
 | `State()` | Returns a copy of the current `LoginState`. |
+| `AddStateListener(listener)` | Registers a function to call with each new state. |
 | `Restore()` | Loads a login saved by an earlier run. Doesn't contact Twitch. |
 | `StartLogin(ctx)` | Gets a code from Twitch and starts waiting for approval in the background. Refuses if already logged in. |
 | `CancelLogin()` | Stops waiting for approval. |
 | `Logout(ctx)` | Forgets the login and tells Twitch to revoke the token. |
-| `AccessToken(ctx)` | Returns a valid access token, refreshing first if it's about to expire. This is what the rest of the engine calls. |
+| `AccessToken(ctx)` | Returns an access token, refreshing first if it's about to expire. This is what the rest of the engine calls. A restored token's expiry is unknown until the first validation, so it's handed out as is rather than forcing a refresh at every startup. |
 | `RenewAccessToken(ctx, rejectedToken)` | Gets a new token after Twitch rejected one. Concurrent callers share a single refresh. |
 | `AccountUserID()` | Returns the logged-in account's Twitch user ID. |
 | `KeepValidated(ctx)` | Checks the login with Twitch immediately and then every hour, until `ctx` is cancelled. |
+| `EndSessionRevokedByTwitch()` | Logs out because Twitch revoked Whendo's access, which EventSub reports. Unlike `Logout`, it doesn't revoke the token, since Twitch no longer accepts it. |
 
 `TwitchLoginService` exposes a subset to the UI: `GetLoginState`, `StartLogin` (which also opens the browser), `OpenVerificationPage`, `CancelLogin` and `Logout`.
 
@@ -177,7 +180,7 @@ sequenceDiagram
     participant Store as Credential store
 
     Caller->>Session: AccessToken(ctx)
-    alt token valid for more than 5 minutes
+    alt expiry unknown, or token valid for more than 5 minutes
         Session-->>Caller: current token
     else about to expire
         Session->>Twitch: refresh (see below)

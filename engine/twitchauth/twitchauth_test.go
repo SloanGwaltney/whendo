@@ -184,8 +184,8 @@ func newSessionUnderTest(twitch *fakeTwitch) sessionUnderTest {
 	session := twitchauth.NewSession(twitchauth.SessionConfig{
 		Client:          twitch.client(),
 		CredentialStore: store,
-		OnStateChange:   func(state twitchauth.LoginState) { stateChanges <- state },
 	})
+	session.AddStateListener(func(state twitchauth.LoginState) { stateChanges <- state })
 	return sessionUnderTest{session: session, store: store, stateChanges: stateChanges}
 }
 
@@ -497,5 +497,69 @@ func TestSessionLogout_ForgetsLoginAndRevokesToken(t *testing.T) {
 	_, err = subject.session.AccessToken(context.Background())
 	if !errors.Is(err, twitchauth.ErrNotLoggedIn) {
 		t.Errorf("got error %v, want ErrNotLoggedIn", err)
+	}
+}
+
+func TestSessionAccessToken_ReturnsRestoredTokenWithoutRefreshing(t *testing.T) {
+	twitch := newFakeTwitch(t)
+	subject := newSessionUnderTest(twitch)
+	subject.storeLogin("stored-access-token")
+	err := subject.session.Restore()
+	if err != nil {
+		t.Fatalf("Restore returned an error: %v", err)
+	}
+
+	accessToken, err := subject.session.AccessToken(context.Background())
+
+	if err != nil || accessToken != "stored-access-token" {
+		t.Errorf("got token %q (error %v), want the stored token", accessToken, err)
+	}
+	if twitch.refreshCount.Load() != 0 {
+		t.Errorf("refreshed %d times, want 0", twitch.refreshCount.Load())
+	}
+}
+
+func TestSessionEndSessionRevokedByTwitch_LogsOutAndForgetsLogin(t *testing.T) {
+	twitch := newFakeTwitch(t)
+	subject := newSessionUnderTest(twitch)
+	subject.storeLogin("stored-access-token")
+	err := subject.session.Restore()
+	if err != nil {
+		t.Fatalf("Restore returned an error: %v", err)
+	}
+
+	subject.session.EndSessionRevokedByTwitch()
+
+	state := subject.session.State()
+	if state.Status != twitchauth.LoginStatusLoggedOut || state.LogoutReason != twitchauth.LogoutReasonSessionEnded {
+		t.Errorf("got state %+v", state)
+	}
+	if subject.store.count() != 0 {
+		t.Errorf("%d credentials still stored, want 0", subject.store.count())
+	}
+	if twitch.revokeCount.Load() != 0 {
+		t.Errorf("revoked %d times; a token Twitch already revoked shouldn't be revoked again", twitch.revokeCount.Load())
+	}
+}
+
+func TestSessionAddStateListener_NotifiesEveryListener(t *testing.T) {
+	subject := newSessionUnderTest(newFakeTwitch(t))
+	var secondListenerStates []twitchauth.LoginState
+	subject.session.AddStateListener(func(state twitchauth.LoginState) {
+		secondListenerStates = append(secondListenerStates, state)
+	})
+	subject.storeLogin("stored-access-token")
+
+	err := subject.session.Restore()
+	if err != nil {
+		t.Fatalf("Restore returned an error: %v", err)
+	}
+
+	firstListenerState := waitForStatus(t, subject.stateChanges, twitchauth.LoginStatusLoggedIn)
+	if firstListenerState.AccountLogin != testAccountLogin {
+		t.Errorf("first listener got state %+v", firstListenerState)
+	}
+	if len(secondListenerStates) != 1 || secondListenerStates[0].Status != twitchauth.LoginStatusLoggedIn {
+		t.Errorf("second listener got states %+v", secondListenerStates)
 	}
 }

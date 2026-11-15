@@ -14,6 +14,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/SloanGwaltney/whendo/engine/trigger"
+	"github.com/SloanGwaltney/whendo/engine/twitchauth"
 )
 
 const (
@@ -43,21 +44,6 @@ var ErrAuthorizationLost = errors.New("twitch no longer accepts Whendo's access"
 
 var errKeepaliveTimeout = errors.New("twitch sent nothing within the keepalive timeout")
 
-// Authorization is what the listener needs from the Twitch login.
-// twitchauth.Session implements it.
-type Authorization interface {
-	// AccessToken returns a valid access token, or an error wrapping
-	// twitchauth.ErrNotLoggedIn.
-	AccessToken(ctx context.Context) (string, error)
-	// RenewAccessToken returns a new token to replace one Twitch rejected.
-	RenewAccessToken(ctx context.Context, rejectedAccessToken string) (string, error)
-	// AccountUserID returns the streamer's Twitch user ID.
-	AccountUserID() (string, error)
-	// EndSessionRevokedByTwitch logs the user out because Twitch no longer
-	// accepts Whendo's access.
-	EndSessionRevokedByTwitch()
-}
-
 // ConnectionStatus says whether Whendo is receiving events from Twitch.
 type ConnectionStatus string
 
@@ -77,10 +63,12 @@ type ConnectionState struct {
 
 // ListenerConfig holds what a Listener needs.
 type ListenerConfig struct {
-	ClientID      string
-	Authorization Authorization
-	Receiver      trigger.Receiver
-	Logger        *slog.Logger
+	ClientID string
+	// Session is the Twitch login the listener subscribes with. The listener
+	// logs it out when Twitch revokes Whendo's access.
+	Session  *twitchauth.Session
+	Receiver trigger.Receiver
+	Logger   *slog.Logger
 	// OnStateChange, if set, is called with the new state each time it
 	// changes.
 	OnStateChange func(ConnectionState)
@@ -95,7 +83,7 @@ type ListenerConfig struct {
 // events it receives as triggers.
 type Listener struct {
 	clientID      string
-	authorization Authorization
+	session       *twitchauth.Session
 	receiver      trigger.Receiver
 	logger        *slog.Logger
 	onStateChange func(ConnectionState)
@@ -131,7 +119,7 @@ func NewListener(config ListenerConfig) *Listener {
 	}
 	return &Listener{
 		clientID:                config.ClientID,
-		authorization:           config.Authorization,
+		session:                 config.Session,
 		receiver:                config.Receiver,
 		logger:                  logger,
 		onStateChange:           config.OnStateChange,
@@ -338,7 +326,7 @@ func (listener *Listener) handleRevocation(subscription subscriptionPayload) err
 	switch subscription.Status {
 	case authorizationRevokedReason, userRemovedReason:
 		listener.logger.Info("Twitch revoked Whendo's access; logging out", "reason", subscription.Status)
-		listener.authorization.EndSessionRevokedByTwitch()
+		listener.session.EndSessionRevokedByTwitch()
 		return ErrAuthorizationLost
 	case versionRemovedReason:
 		// Only an update to Whendo can fix this, so it's logged as an error

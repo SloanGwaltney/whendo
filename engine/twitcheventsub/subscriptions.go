@@ -79,14 +79,14 @@ func subscriptionRequests(broadcasterUserID string, sessionID string) []subscrip
 // Twitch refuses for reasons other than authorization is reported as a
 // problem and the rest still go ahead, since the others are still useful.
 func (listener *Listener) subscribeToAll(ctx context.Context, sessionID string) ([]string, error) {
-	broadcasterUserID, err := listener.authorization.AccountUserID()
+	broadcasterUserID, err := listener.session.AccountUserID()
 	if errors.Is(err, twitchauth.ErrNotLoggedIn) {
 		return nil, ErrAuthorizationLost
 	}
 	if err != nil {
 		return nil, fmt.Errorf("getting the Twitch account to subscribe for: %w", err)
 	}
-	accessToken, err := listener.authorization.AccessToken(ctx)
+	accessToken, err := listener.session.AccessToken(ctx)
 	if errors.Is(err, twitchauth.ErrNotLoggedIn) {
 		return nil, ErrAuthorizationLost
 	}
@@ -118,7 +118,7 @@ func (listener *Listener) subscribe(ctx context.Context, accessToken string, req
 		return accessToken, "", err
 	}
 	if statusCode == http.StatusUnauthorized {
-		accessToken, err = listener.authorization.RenewAccessToken(ctx, accessToken)
+		accessToken, err = listener.session.RenewAccessToken(ctx, accessToken)
 		if errors.Is(err, twitchauth.ErrNotLoggedIn) {
 			return accessToken, "", ErrAuthorizationLost
 		}
@@ -142,7 +142,7 @@ func (listener *Listener) subscribe(ctx context.Context, accessToken string, req
 		// The login lacks a scope this version of Whendo needs. Logging in
 		// again requests the current scopes.
 		listener.logger.Warn("the Twitch login is missing a scope; logging out so the user can log in again", "type", request.Type, "message", message)
-		listener.authorization.EndSessionRevokedByTwitch()
+		listener.session.EndSessionRevokedByTwitch()
 		return accessToken, "", ErrAuthorizationLost
 	default:
 		return accessToken, fmt.Sprintf("couldn't subscribe to %s version %s: HTTP %d: %s", request.Type, request.Version, statusCode, message), nil

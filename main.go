@@ -34,9 +34,9 @@ func main() {
 	twitchSession := twitchauth.NewSession(twitchauth.SessionConfig{
 		Client:          twitchauth.NewClient(twitchClientID(), twitchauth.DefaultIdentityBaseURL, &http.Client{Timeout: twitchRequestTimeout}),
 		CredentialStore: credentials.NewKeyringStore(credentialServiceName),
-		OnStateChange: func(state twitchauth.LoginState) {
-			app.Event.Emit(twitchLoginStateChangedEvent, state)
-		},
+	})
+	twitchSession.AddStateListener(func(state twitchauth.LoginState) {
+		app.Event.Emit(twitchLoginStateChangedEvent, state)
 	})
 
 	// Create a new Wails application by providing the necessary options.

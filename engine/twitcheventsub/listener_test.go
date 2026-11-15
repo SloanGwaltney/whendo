@@ -9,11 +9,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 
+	"github.com/SloanGwaltney/whendo/engine/credentials"
 	"github.com/SloanGwaltney/whendo/engine/trigger"
 	"github.com/SloanGwaltney/whendo/engine/twitchauth"
 	"github.com/SloanGwaltney/whendo/engine/twitcheventsub"
@@ -23,6 +25,7 @@ const (
 	testClientID              = "test-client-id"
 	testAccessToken           = "test-access-token"
 	renewedAccessToken        = "renewed-access-token"
+	storedRefreshToken        = "stored-refresh-token"
 	largeKeepaliveSeconds     = 600
 	shortKeepaliveSeconds     = 1
 	waitTimeout               = 15 * time.Second
@@ -39,6 +42,7 @@ type fakeEventSub struct {
 	rejectedTokens   map[string]bool
 	isScopeMissing   bool
 	acceptedSockets  chan *fakeSocket
+	refreshCount     atomic.Int32
 	mutex            sync.Mutex
 	sessionCount     int
 	subscriptions    []recordedSubscription
@@ -73,6 +77,7 @@ func newFakeEventSub(t *testing.T) *fakeEventSub {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", fake.handleWebSocket)
 	mux.HandleFunc("POST /helix/eventsub/subscriptions", fake.handleSubscribe)
+	mux.HandleFunc("POST /oauth2/token", fake.handleRefresh)
 	fake.server = httptest.NewServer(mux)
 	t.Cleanup(fake.server.Close)
 	return fake
@@ -135,6 +140,23 @@ func (fake *fakeEventSub) handleSubscribe(writer http.ResponseWriter, request *h
 	writer.WriteHeader(http.StatusAccepted)
 }
 
+func (fake *fakeEventSub) handleRefresh(writer http.ResponseWriter, request *http.Request) {
+	if request.FormValue("grant_type") != "refresh_token" || request.FormValue("refresh_token") != storedRefreshToken {
+		writeHelixError(writer, http.StatusBadRequest, "Invalid refresh token")
+		return
+	}
+	fake.refreshCount.Add(1)
+	writer.Header().Set("Content-Type", "application/json")
+	err := json.NewEncoder(writer).Encode(map[string]any{
+		"access_token":  renewedAccessToken,
+		"refresh_token": "renewed-refresh-token",
+		"expires_in":    14400,
+	})
+	if err != nil {
+		panic(err)
+	}
+}
+
 func writeHelixError(writer http.ResponseWriter, statusCode int, message string) {
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(statusCode)
@@ -194,45 +216,62 @@ func chatNotification(messageID string) string {
 	return notificationMessage(messageID, chatMessageType, "1", chatMessageEventJSON(""))
 }
 
-type fakeAuthorization struct {
-	mutex            sync.Mutex
-	accessToken      string
-	renewCount       int
-	isLoggedIn       bool
-	sessionEndedOnce sync.Once
-	sessionEnded     chan struct{}
+type memoryCredentialStore struct {
+	mutex   sync.Mutex
+	secrets map[string]string
 }
 
-func newFakeAuthorization() *fakeAuthorization {
-	return &fakeAuthorization{accessToken: testAccessToken, isLoggedIn: true, sessionEnded: make(chan struct{})}
-}
-
-func (authorization *fakeAuthorization) AccessToken(ctx context.Context) (string, error) {
-	authorization.mutex.Lock()
-	defer authorization.mutex.Unlock()
-	if !authorization.isLoggedIn {
-		return "", twitchauth.ErrNotLoggedIn
+func (store *memoryCredentialStore) Get(name string) (string, error) {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+	secret, isStored := store.secrets[name]
+	if !isStored {
+		return "", credentials.ErrNotFound
 	}
-	return authorization.accessToken, nil
+	return secret, nil
 }
 
-func (authorization *fakeAuthorization) RenewAccessToken(ctx context.Context, rejectedAccessToken string) (string, error) {
-	authorization.mutex.Lock()
-	defer authorization.mutex.Unlock()
-	authorization.renewCount++
-	authorization.accessToken = renewedAccessToken
-	return authorization.accessToken, nil
+func (store *memoryCredentialStore) Set(name string, secret string) error {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+	store.secrets[name] = secret
+	return nil
 }
 
-func (authorization *fakeAuthorization) AccountUserID() (string, error) {
-	return broadcasterUserID, nil
+func (store *memoryCredentialStore) Delete(name string) error {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+	delete(store.secrets, name)
+	return nil
 }
 
-func (authorization *fakeAuthorization) EndSessionRevokedByTwitch() {
-	authorization.mutex.Lock()
-	authorization.isLoggedIn = false
-	authorization.mutex.Unlock()
-	authorization.sessionEndedOnce.Do(func() { close(authorization.sessionEnded) })
+// newLoggedInSession returns a real Twitch session, restored from a stored
+// login and pointed at the fake server.
+func newLoggedInSession(t *testing.T, fake *fakeEventSub) *twitchauth.Session {
+	t.Helper()
+	store := &memoryCredentialStore{secrets: map[string]string{
+		"twitch-access-token":    testAccessToken,
+		"twitch-refresh-token":   storedRefreshToken,
+		"twitch-account-login":   "cool_user",
+		"twitch-account-user-id": broadcasterUserID,
+	}}
+	session := twitchauth.NewSession(twitchauth.SessionConfig{
+		Client:          twitchauth.NewClient(testClientID, fake.server.URL, fake.server.Client()),
+		CredentialStore: store,
+	})
+	err := session.Restore()
+	if err != nil {
+		t.Fatalf("restoring the session: %v", err)
+	}
+	return session
+}
+
+func assertLoggedOutBecauseTwitchEndedSession(t *testing.T, session *twitchauth.Session) {
+	t.Helper()
+	state := session.State()
+	if state.Status != twitchauth.LoginStatusLoggedOut || state.LogoutReason != twitchauth.LogoutReasonSessionEnded {
+		t.Errorf("got login state %+v, want logged out because Twitch ended the session", state)
+	}
 }
 
 type eventCollector struct {
@@ -244,21 +283,22 @@ func (collector *eventCollector) ReceiveEvent(event trigger.Event) {
 }
 
 type listenerUnderTest struct {
-	listener      *twitcheventsub.Listener
-	authorization *fakeAuthorization
-	events        chan trigger.Event
-	states        chan twitcheventsub.ConnectionState
-	runResult     chan error
-	cancel        context.CancelFunc
+	listener  *twitcheventsub.Listener
+	session   *twitchauth.Session
+	events    chan trigger.Event
+	states    chan twitcheventsub.ConnectionState
+	runResult chan error
+	cancel    context.CancelFunc
 }
 
-func startListener(t *testing.T, fake *fakeEventSub, authorization *fakeAuthorization) listenerUnderTest {
+func startListener(t *testing.T, fake *fakeEventSub) listenerUnderTest {
 	t.Helper()
 	events := make(chan trigger.Event, 16)
 	states := make(chan twitcheventsub.ConnectionState, 64)
+	session := newLoggedInSession(t, fake)
 	listener := twitcheventsub.NewListener(twitcheventsub.ListenerConfig{
 		ClientID:      testClientID,
-		Authorization: authorization,
+		Session:       session,
 		Receiver:      &eventCollector{events: events},
 		OnStateChange: func(state twitcheventsub.ConnectionState) { states <- state },
 		WebSocketURL:  fake.webSocketURL(),
@@ -272,7 +312,7 @@ func startListener(t *testing.T, fake *fakeEventSub, authorization *fakeAuthoriz
 		runResult <- listener.Run(ctx)
 		close(runFinished)
 	}()
-	subject := listenerUnderTest{listener: listener, authorization: authorization, events: events, states: states, runResult: runResult, cancel: cancel}
+	subject := listenerUnderTest{listener: listener, session: session, events: events, states: states, runResult: runResult, cancel: cancel}
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -323,7 +363,7 @@ func (subject listenerUnderTest) awaitRunResult(t *testing.T) error {
 
 func TestListenerRun_SubscribesToEveryEventForTheSession(t *testing.T) {
 	fake := newFakeEventSub(t)
-	subject := startListener(t, fake, newFakeAuthorization())
+	subject := startListener(t, fake)
 	socket := fake.awaitSocket(t)
 
 	subject.awaitStatus(t, twitcheventsub.ConnectionStatusConnected)
@@ -351,7 +391,7 @@ func TestListenerRun_SubscribesToEveryEventForTheSession(t *testing.T) {
 
 func TestListenerRun_DeliversNotificationsAsTriggerEvents(t *testing.T) {
 	fake := newFakeEventSub(t)
-	subject := startListener(t, fake, newFakeAuthorization())
+	subject := startListener(t, fake)
 	socket := fake.awaitSocket(t)
 	subject.awaitStatus(t, twitcheventsub.ConnectionStatusConnected)
 
@@ -365,7 +405,7 @@ func TestListenerRun_DeliversNotificationsAsTriggerEvents(t *testing.T) {
 
 func TestListenerRun_IgnoresDuplicateNotifications(t *testing.T) {
 	fake := newFakeEventSub(t)
-	subject := startListener(t, fake, newFakeAuthorization())
+	subject := startListener(t, fake)
 	socket := fake.awaitSocket(t)
 	subject.awaitStatus(t, twitcheventsub.ConnectionStatusConnected)
 
@@ -383,7 +423,7 @@ func TestListenerRun_IgnoresDuplicateNotifications(t *testing.T) {
 
 func TestListenerRun_ReconnectsAndResubscribesAfterConnectionDrops(t *testing.T) {
 	fake := newFakeEventSub(t)
-	subject := startListener(t, fake, newFakeAuthorization())
+	subject := startListener(t, fake)
 	firstSocket := fake.awaitSocket(t)
 	subject.awaitStatus(t, twitcheventsub.ConnectionStatusConnected)
 
@@ -408,7 +448,7 @@ func TestListenerRun_ReconnectsAndResubscribesAfterConnectionDrops(t *testing.T)
 func TestListenerRun_ReconnectsWhenKeepalivesStop(t *testing.T) {
 	fake := newFakeEventSub(t)
 	fake.keepaliveSeconds = shortKeepaliveSeconds
-	startListener(t, fake, newFakeAuthorization())
+	startListener(t, fake)
 	firstSocket := fake.awaitSocket(t)
 
 	// The fake never sends keepalives, so the listener should give up on
@@ -424,7 +464,7 @@ func TestListenerRun_ReconnectsWhenKeepalivesStop(t *testing.T) {
 
 func TestListenerRun_FollowsPlannedReconnectWithoutResubscribing(t *testing.T) {
 	fake := newFakeEventSub(t)
-	subject := startListener(t, fake, newFakeAuthorization())
+	subject := startListener(t, fake)
 	firstSocket := fake.awaitSocket(t)
 	subject.awaitStatus(t, twitcheventsub.ConnectionStatusConnected)
 
@@ -448,17 +488,13 @@ func TestListenerRun_FollowsPlannedReconnectWithoutResubscribing(t *testing.T) {
 func TestListenerRun_RenewsTokenOnceWhenTwitchRejectsIt(t *testing.T) {
 	fake := newFakeEventSub(t)
 	fake.rejectedTokens[testAccessToken] = true
-	authorization := newFakeAuthorization()
-	subject := startListener(t, fake, authorization)
+	subject := startListener(t, fake)
 	fake.awaitSocket(t)
 
 	subject.awaitStatus(t, twitcheventsub.ConnectionStatusConnected)
 
-	authorization.mutex.Lock()
-	renewCount := authorization.renewCount
-	authorization.mutex.Unlock()
-	if renewCount != 1 {
-		t.Errorf("renewed the token %d times, want 1", renewCount)
+	if refreshCount := fake.refreshCount.Load(); refreshCount != 1 {
+		t.Errorf("refreshed the token %d times, want 1", refreshCount)
 	}
 	for _, subscription := range fake.recordedSubscriptions() {
 		if subscription.accessToken != renewedAccessToken {
@@ -470,8 +506,7 @@ func TestListenerRun_RenewsTokenOnceWhenTwitchRejectsIt(t *testing.T) {
 func TestListenerRun_LogsOutWhenAScopeIsMissing(t *testing.T) {
 	fake := newFakeEventSub(t)
 	fake.isScopeMissing = true
-	authorization := newFakeAuthorization()
-	subject := startListener(t, fake, authorization)
+	subject := startListener(t, fake)
 	fake.awaitSocket(t)
 
 	err := subject.awaitRunResult(t)
@@ -479,17 +514,12 @@ func TestListenerRun_LogsOutWhenAScopeIsMissing(t *testing.T) {
 	if !errors.Is(err, twitcheventsub.ErrAuthorizationLost) {
 		t.Errorf("got error %v, want ErrAuthorizationLost", err)
 	}
-	select {
-	case <-authorization.sessionEnded:
-	default:
-		t.Error("the user wasn't logged out")
-	}
+	assertLoggedOutBecauseTwitchEndedSession(t, subject.session)
 }
 
 func TestListenerRun_LogsOutWhenTwitchRevokesAuthorization(t *testing.T) {
 	fake := newFakeEventSub(t)
-	authorization := newFakeAuthorization()
-	subject := startListener(t, fake, authorization)
+	subject := startListener(t, fake)
 	socket := fake.awaitSocket(t)
 	subject.awaitStatus(t, twitcheventsub.ConnectionStatusConnected)
 
@@ -499,17 +529,12 @@ func TestListenerRun_LogsOutWhenTwitchRevokesAuthorization(t *testing.T) {
 	if !errors.Is(err, twitcheventsub.ErrAuthorizationLost) {
 		t.Errorf("got error %v, want ErrAuthorizationLost", err)
 	}
-	select {
-	case <-authorization.sessionEnded:
-	default:
-		t.Error("the user wasn't logged out")
-	}
+	assertLoggedOutBecauseTwitchEndedSession(t, subject.session)
 }
 
 func TestListenerRun_ReportsProblemWhenSubscriptionVersionIsRemoved(t *testing.T) {
 	fake := newFakeEventSub(t)
-	authorization := newFakeAuthorization()
-	subject := startListener(t, fake, authorization)
+	subject := startListener(t, fake)
 	socket := fake.awaitSocket(t)
 	subject.awaitStatus(t, twitcheventsub.ConnectionStatusConnected)
 
@@ -519,16 +544,14 @@ func TestListenerRun_ReportsProblemWhenSubscriptionVersionIsRemoved(t *testing.T
 	if len(state.Problems) != 1 || !strings.Contains(state.Problems[0], followType) {
 		t.Errorf("got problems %v, want one about %s", state.Problems, followType)
 	}
-	select {
-	case <-authorization.sessionEnded:
-		t.Error("the user was logged out, but only one subscription stopped")
-	default:
+	if status := subject.session.State().Status; status != twitchauth.LoginStatusLoggedIn {
+		t.Errorf("got login status %q; the user shouldn't be logged out when only one subscription stopped", status)
 	}
 }
 
 func TestListenerRun_ReturnsNilWhenContextIsCancelled(t *testing.T) {
 	fake := newFakeEventSub(t)
-	subject := startListener(t, fake, newFakeAuthorization())
+	subject := startListener(t, fake)
 	fake.awaitSocket(t)
 	subject.awaitStatus(t, twitcheventsub.ConnectionStatusConnected)
 
