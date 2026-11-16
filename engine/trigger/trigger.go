@@ -20,6 +20,11 @@ type VariableDefinition struct {
 	// after the matched text. A test run form doesn't ask for these, because
 	// the filter fills them in.
 	IsAddedByFilter bool `json:"isAddedByFilter"`
+	// IsSetBySettings means the automation's settings decide the value, such
+	// as the ID of the reward a redeem trigger watches for. A test run form
+	// fills these in from the trigger's test values rather than asking,
+	// since any other value would never match.
+	IsSetBySettings bool `json:"isSetBySettings"`
 	// IsCommon means the designer lists the variable first, before a "more"
 	// link, because most automations use it, like the redeemer's name.
 	IsCommon bool `json:"isCommon"`
@@ -49,6 +54,30 @@ type Trigger interface {
 	// along with any the filter adds. It returns an error when the settings
 	// themselves are invalid, such as a missing required setting.
 	Filter(event Event, settings automationsetting.Values) (variables map[string]string, isMatch bool, err error)
+	// TestValues returns starting values for a test run, which pass Filter
+	// with these settings, so a quick test is one click. Values about a
+	// person are the streamer's own. Only the trigger knows its filter, so
+	// it's the one place that can always offer values that match. See
+	// docs/design/mvp-ui.md#test-runs.
+	TestValues(settings automationsetting.Values, streamer Streamer) map[string]string
+}
+
+// MismatchExplainer is a trigger that can say, in words for the streamer,
+// why test values don't pass its filter, such as "The message has to start
+// with “!d20”." Triggers that can't are still testable; the test form then
+// gives a general reason.
+type MismatchExplainer interface {
+	ExplainMismatch(variables map[string]string, settings automationsetting.Values) string
+}
+
+// Streamer is the account an automation runs for, whose details a test
+// run's starting values use.
+type Streamer struct {
+	UserID string
+	Login  string
+	// DisplayName is the name shown in chat. It can differ from Login in
+	// capitalization, or for names in other alphabets.
+	DisplayName string
 }
 
 // Event is one occurrence of a trigger. Variables holds a value for each of

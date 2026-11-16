@@ -1,10 +1,16 @@
 <script lang="ts">
+  import {Events} from "@wailsio/runtime";
+  import {RunEnded} from "../bindings/events";
   import {AutomationsService} from "../bindings/github.com/SloanGwaltney/whendo";
   import type {AutomationSummary, CatalogDefinitions} from "../bindings/github.com/SloanGwaltney/whendo";
   import type {Automation} from "../bindings/github.com/SloanGwaltney/whendo/engine/automation";
+  import {RunStatus} from "../bindings/github.com/SloanGwaltney/whendo/engine/runner";
+  import type {RunRecord} from "../bindings/github.com/SloanGwaltney/whendo/engine/runner";
   import AutomationRow from "./AutomationRow.svelte";
   import Dialog from "./Dialog.svelte";
   import Page from "./Page.svelte";
+  import TestRunDialog from "./TestRunDialog.svelte";
+  import Toast from "./Toast.svelte";
 
   // The automation list. See docs/design/mvp-ui.md#home. The sample gallery
   // comes later.
@@ -19,7 +25,16 @@
   let isCreating = $state(false);
   let newAutomationName = $state("");
 
+  let automationToTest = $state<AutomationSummary | null>(null);
+  let toastMessage = $state("");
+  // Test runs started here, to say how they went when they end. A quick run
+  // can end before TestRun's answer arrives with its ID, so recently ended
+  // test runs are kept to look up.
+  const startedTestRunIDs = new Set<string>();
+  const endedTestRecordsByRunID = new Map<string, RunRecord>();
+
   const triggerNamesByID = $derived(new Map((catalog?.triggers ?? []).map((definition) => [definition.id, definition.displayName])));
+  const testedTriggerDefinition = $derived((catalog?.triggers ?? []).find((definition) => definition.id === automationToTest?.triggerId) ?? null);
 
   loadPage();
 
@@ -65,6 +80,42 @@
       return;
     }
     await runAction(`Couldn't delete “${deleted.name}”`, () => AutomationsService.DeleteAutomation(deleted.id));
+  }
+
+  $effect(() => {
+    return Events.On(RunEnded, (event) => {
+      const record = event.data;
+      if (!record.isTest) {
+        return;
+      }
+      if (startedTestRunIDs.delete(record.runId)) {
+        announceTestRun(record);
+      } else {
+        endedTestRecordsByRunID.set(record.runId, record);
+      }
+    });
+  });
+
+  function rememberTestRun(runID: string): void {
+    automationToTest = null;
+    const endedRecord = endedTestRecordsByRunID.get(runID);
+    endedTestRecordsByRunID.clear();
+    if (endedRecord) {
+      announceTestRun(endedRecord);
+      return;
+    }
+    startedTestRunIDs.add(runID);
+    toastMessage = "Test run started.";
+  }
+
+  function announceTestRun(record: RunRecord): void {
+    if (record.status === RunStatus.RunStatusSucceeded) {
+      toastMessage = `Test run of “${record.automationName}” finished.`;
+      return;
+    }
+    const reason = record.steps?.find((stepRecord) => stepRecord.failureReason)?.failureReason || record.failureReason;
+    const ending = record.status === RunStatus.RunStatusCancelled ? "was cancelled" : "failed";
+    toastMessage = `Test run of “${record.automationName}” ${ending}${reason ? `: ${reason}` : "."}`;
   }
 
   function startCreating(): void {
@@ -124,6 +175,7 @@
             triggerName={triggerNamesByID.get(summary.triggerId) ?? ""}
             onOpen={() => onOpenAutomation(summary.id)}
             onToggle={() => toggle(summary)}
+            onTest={() => (automationToTest = summary)}
             onDelete={() => (automationToDelete = summary)}
           />
         {/each}
@@ -139,6 +191,18 @@
     <button type="button" class="button is-danger" onclick={confirmDelete}>Delete</button>
   </div>
 </Dialog>
+
+<TestRunDialog
+  automationID={automationToTest?.id ?? ""}
+  automationName={automationToTest?.name ?? ""}
+  triggerDefinition={testedTriggerDefinition}
+  onStarted={rememberTestRun}
+  onClose={() => (automationToTest = null)}
+/>
+
+{#if toastMessage}
+  <Toast message={toastMessage} onDismiss={() => (toastMessage = "")}/>
+{/if}
 
 <Dialog title="New automation" isOpen={isCreating} onClose={() => (isCreating = false)}>
   <form class="new-automation" onsubmit={create}>

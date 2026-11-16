@@ -46,6 +46,14 @@ export interface VariableDefinition {
     "isAddedByFilter": boolean;
 
     /**
+     * IsSetBySettings means the automation's settings decide the value, such
+     * as the ID of the reward a redeem trigger watches for. A test run form
+     * fills these in from the trigger's test values rather than asking,
+     * since any other value would never match.
+     */
+    "isSetBySettings": boolean;
+
+    /**
      * IsCommon means the designer lists the variable first, before a "more"
      * link, because most automations use it, like the redeemer's name.
      */

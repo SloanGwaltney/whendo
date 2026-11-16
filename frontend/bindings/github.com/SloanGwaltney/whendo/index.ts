@@ -13,5 +13,6 @@ export {
 export type {
     AutomationSummary,
     CatalogDefinitions,
-    SaveResult
+    SaveResult,
+    TestRunStarted
 } from "./models.js";

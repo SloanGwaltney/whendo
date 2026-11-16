@@ -15,6 +15,7 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/credentials"
 	"github.com/SloanGwaltney/whendo/engine/runhistory"
 	"github.com/SloanGwaltney/whendo/engine/runner"
+	"github.com/SloanGwaltney/whendo/engine/trigger"
 	"github.com/SloanGwaltney/whendo/engine/twitchauth"
 	"github.com/SloanGwaltney/whendo/engine/twitcheventsub"
 	"github.com/SloanGwaltney/whendo/engine/twitchsteps"
@@ -158,6 +159,19 @@ func newAutomationsServiceForApp(twitchSession *twitchauth.Session, twitchHTTPCl
 		catalog,
 		automation.NewStore(filepath.Join(folder, automationsFolderName)),
 		runhistory.NewStore(filepath.Join(folder, runHistoryFolderName), slog.Default()),
+		func() (trigger.Streamer, error) { return streamerFromSession(twitchSession) },
 		slog.Default(),
 	), nil
+}
+
+// streamerFromSession gives the logged-in Twitch account as the streamer
+// test runs act as. The login only knows the account's login name, which is
+// its display name apart from capitalization, so it stands in for both.
+func streamerFromSession(session *twitchauth.Session) (trigger.Streamer, error) {
+	userID, err := session.AccountUserID()
+	if err != nil {
+		return trigger.Streamer{}, err
+	}
+	login := session.State().AccountLogin
+	return trigger.Streamer{UserID: userID, Login: login, DisplayName: login}, nil
 }

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -16,11 +17,14 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/automationsetting"
 	"github.com/SloanGwaltney/whendo/engine/coresteps"
 	"github.com/SloanGwaltney/whendo/engine/runhistory"
+	"github.com/SloanGwaltney/whendo/engine/trigger"
 	"github.com/SloanGwaltney/whendo/engine/twitcheventsub"
 	"github.com/SloanGwaltney/whendo/engine/twitchsteps"
 )
 
 const waitMilliseconds = 10
+
+var testStreamer = trigger.Streamer{UserID: "1234", Login: "teststreamer", DisplayName: "teststreamer"}
 
 type serviceFixture struct {
 	t                *testing.T
@@ -42,7 +46,7 @@ func newServiceFixture(t *testing.T, prepareFolder func(automationFolder string)
 		t.Fatalf("NewCatalog returned an error: %v", err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	service := newAutomationsService(catalog, automation.NewStore(automationFolder), runhistory.NewStore(filepath.Join(folder, runHistoryFolderName), logger), logger)
+	service := newAutomationsService(catalog, automation.NewStore(automationFolder), runhistory.NewStore(filepath.Join(folder, runHistoryFolderName), logger), func() (trigger.Streamer, error) { return testStreamer, nil }, logger)
 	ctx, cancel := context.WithCancel(context.Background())
 	err = service.ServiceStartup(ctx, application.ServiceOptions{})
 	if err != nil {
@@ -209,7 +213,7 @@ func TestAutomationsService_RefusesToTestRunAutomationThatWasValidThenBroken(t *
 	fixture.save(chatAutomation(t, "edited", "Edited"))
 	fixture.save(brokenChatAutomation(t, "edited"))
 
-	err := fixture.service.TestRun("edited", map[string]string{twitcheventsub.MessageTextVariable: "!test"})
+	_, err := fixture.service.TestRun("edited", map[string]string{twitcheventsub.MessageTextVariable: "!test"})
 
 	if !errors.Is(err, errNeedsFixing) {
 		t.Errorf("got error %v, want errNeedsFixing", err)
@@ -313,5 +317,33 @@ func TestAutomationsService_DeleteRemovesAutomationAndUnreadableFiles(t *testing
 	entries, err := os.ReadDir(fixture.automationFolder)
 	if err != nil || len(entries) != 0 {
 		t.Errorf("got %d files, error %v; want an empty folder", len(entries), err)
+	}
+}
+
+func TestAutomationsService_TestValuesComeFromTheTriggerAndStreamer(t *testing.T) {
+	fixture := newServiceFixture(t, nil)
+	fixture.save(chatAutomation(t, "chat", "Chat"))
+
+	testValues, err := fixture.service.TestValues("chat")
+
+	if err != nil {
+		t.Fatalf("TestValues returned an error: %v", err)
+	}
+	if testValues[twitcheventsub.MessageTextVariable] != "!test" || testValues[twitcheventsub.SenderLoginVariable] != testStreamer.Login {
+		t.Errorf("got test values %v, want the start text sent by the streamer", testValues)
+	}
+}
+
+func TestAutomationsService_TestRunExplainsValuesThatWouldNeverMatch(t *testing.T) {
+	fixture := newServiceFixture(t, nil)
+	fixture.save(chatAutomation(t, "chat", "Chat"))
+
+	started, err := fixture.service.TestRun("chat", map[string]string{twitcheventsub.MessageTextVariable: "hello"})
+
+	if err != nil {
+		t.Fatalf("TestRun returned an error: %v", err)
+	}
+	if started.RunID != "" || !strings.Contains(started.MismatchReason, "“!test”") {
+		t.Errorf("got %+v, want no run and a reason naming !test", started)
 	}
 }

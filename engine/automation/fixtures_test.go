@@ -50,6 +50,10 @@ func (fake fakeTrigger) Filter(event trigger.Event, settings automationsetting.V
 	return maps.Clone(event.Variables), event.TriggerID == fake.definition.ID, nil
 }
 
+func (fake fakeTrigger) TestValues(settings automationsetting.Values, streamer trigger.Streamer) map[string]string {
+	return map[string]string{}
+}
+
 type fakeStep struct {
 	definition step.Definition
 	outcomes   []step.Outcome

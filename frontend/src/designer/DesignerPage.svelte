@@ -1,12 +1,17 @@
 <script lang="ts">
+  import {Events} from "@wailsio/runtime";
   import {tick} from "svelte";
+  import {RunEnded} from "../../bindings/events";
   import {AutomationsService} from "../../bindings/github.com/SloanGwaltney/whendo";
   import type {CatalogDefinitions} from "../../bindings/github.com/SloanGwaltney/whendo";
   import {AfterBranch, ProblemLevel, ProblemSubject} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
   import type {Automation, Problem, Report} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
   import {Kind} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
   import type {Values} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
+  import {RunStatus} from "../../bindings/github.com/SloanGwaltney/whendo/engine/runner";
+  import type {RunRecord} from "../../bindings/github.com/SloanGwaltney/whendo/engine/runner";
   import Switch from "../Switch.svelte";
+  import TestRunDialog from "../TestRunDialog.svelte";
   import Toast from "../Toast.svelte";
   import {buildDesignerView, provideDesignerActions, stepElementID, triggerElementID, triggerOwnerID} from "./designerModel";
   import DesignerProblems from "./DesignerProblems.svelte";
@@ -58,8 +63,16 @@
   let toast = $state<ToastMessage | null>(null);
   // The draft before the last change that can be undone.
   let undoSnapshot = $state.raw<Automation | null>(null);
+  let isTestFormOpen = $state(false);
+  // The test run whose result the designer shows, and its record once it
+  // ends.
+  let testedRunID = $state("");
+  let testRecord = $state.raw<RunRecord | null>(null);
+  // A quick run can end before TestRun's answer arrives with its ID, so
+  // recently ended test runs of this automation are kept to look up.
+  const endedTestRecordsByRunID = new Map<string, RunRecord>();
 
-  const view = $derived(catalog && report && draft ? buildDesignerView(catalog, report, draft) : null);
+  const view = $derived(catalog && report && draft ? buildDesignerView(catalog, report, draft, testRecord) : null);
   const hasMustFixProblems = $derived((report?.problems ?? []).some((problem) => problem.level === ProblemLevel.ProblemLevelMustFix));
 
   let checkTimer: ReturnType<typeof setTimeout> | undefined;
@@ -104,6 +117,8 @@
 
   function markChanged(): void {
     hasUnsavedChanges = true;
+    // Marks from a test run of the old version would mislead after an edit.
+    clearTestResult();
     clearTimeout(checkTimer);
     checkTimer = setTimeout(checkDraft, checkDelayMilliseconds);
   }
@@ -298,12 +313,56 @@
     return () => document.removeEventListener("keydown", saveOnShortcut);
   });
 
+  $effect(() => {
+    return Events.On(RunEnded, (event) => {
+      const record = event.data;
+      if (!record.isTest || record.automationId !== automationID) {
+        return;
+      }
+      if (record.runId === testedRunID) {
+        testRecord = record;
+      } else {
+        endedTestRecordsByRunID.set(record.runId, record);
+      }
+    });
+  });
+
+  // Testing runs the saved version, so unsaved changes are saved first, and
+  // the button says so.
+  async function openTestForm(): Promise<void> {
+    if (hasUnsavedChanges) {
+      await save();
+      if (hasUnsavedChanges) {
+        return;
+      }
+    }
+    isTestFormOpen = true;
+  }
+
+  function showTestRun(runID: string): void {
+    isTestFormOpen = false;
+    mode = "build";
+    testedRunID = runID;
+    testRecord = endedTestRecordsByRunID.get(runID) ?? null;
+    endedTestRecordsByRunID.clear();
+  }
+
+  function clearTestResult(): void {
+    testedRunID = "";
+    testRecord = null;
+  }
+
+  const failedTestStep = $derived(testRecord?.steps?.find((stepRecord) => stepRecord.failureReason));
+
   // Jumping to a problem switches to Build, since Read it back has no
   // problem marks to find.
-  async function jumpTo(problem: Problem): Promise<void> {
-    mode = "build";
+  function jumpTo(problem: Problem): Promise<void> {
     const isAboutStep = problem.subject === ProblemSubject.ProblemSubjectStep && problem.stepId;
-    const elementID = isAboutStep ? stepElementID(problem.stepId!) : triggerElementID;
+    return jumpToElement(isAboutStep ? stepElementID(problem.stepId!) : triggerElementID);
+  }
+
+  async function jumpToElement(elementID: string): Promise<void> {
+    mode = "build";
     await tick();
     const element = document.getElementById(elementID);
     if (!element) {
@@ -350,6 +409,13 @@
           {draft.isEnabled ? "On" : "Off"}
         </span>
         <span class="save-state" class:is-unsaved={hasUnsavedChanges}>{hasUnsavedChanges ? "Unsaved changes" : "Saved"}</span>
+        <button
+          type="button"
+          class="button"
+          disabled={hasMustFixProblems || isSaving}
+          title={hasMustFixProblems ? "Fix the problems first" : "Run it now with made-up values"}
+          onclick={openTestForm}
+        >{hasUnsavedChanges ? "Save and test" : "Test run"}</button>
         <button type="button" class="button is-primary" disabled={!hasUnsavedChanges || isSaving} onclick={save}>
           {isSaving ? "Saving…" : "Save"}
         </button>
@@ -362,6 +428,21 @@
       <p class="error is-selectable" role="alert">{errorMessage}</p>
     {/if}
     {#if draft && view}
+      {#if testedRunID}
+        <div class="test-result" class:is-failed={testRecord !== null && testRecord.status !== RunStatus.RunStatusSucceeded} role="status">
+          {#if !testRecord}
+            <span>Test run started. Waiting for it to finish…</span>
+          {:else if testRecord.status === RunStatus.RunStatusSucceeded}
+            <span>Test run finished. Steps it ran are marked ✓.</span>
+          {:else if failedTestStep}
+            <span>Test run failed at {view.stepLabelsByID.get(failedTestStep.stepId) ?? "a step"}.</span>
+            <button type="button" class="test-result-action" onclick={() => jumpToElement(stepElementID(failedTestStep.stepId))}>Show me</button>
+          {:else}
+            <span class="is-selectable">Test run {testRecord.status === RunStatus.RunStatusCancelled ? "was cancelled" : "failed"}{testRecord.failureReason ? `: ${testRecord.failureReason}` : "."}</span>
+          {/if}
+          <button type="button" class="test-result-action" onclick={clearTestResult}>Clear</button>
+        </div>
+      {/if}
       <DesignerProblems problems={view.report.problems ?? []} onJump={jumpTo}/>
       {#if mode === "build"}
         <div class="canvas">
@@ -420,6 +501,14 @@
   {/key}
 {/if}
 
+<TestRunDialog
+  automationID={isTestFormOpen && draft ? draft.id : ""}
+  automationName={draft?.name ?? ""}
+  triggerDefinition={view?.triggerDefinition ?? null}
+  onStarted={showTestRun}
+  onClose={() => (isTestFormOpen = false)}
+/>
+
 {#if toast}
   <Toast message={toast.message} actionLabel={toast.canUndo ? "Undo" : ""} onAction={undo} onDismiss={() => (toast = null)}/>
 {/if}
@@ -467,6 +556,36 @@
     border-color: var(--color-border-strong);
     background: var(--color-surface);
     outline: none;
+  }
+
+  .test-result {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-large);
+    background: var(--color-surface);
+  }
+
+  .test-result.is-failed {
+    border-color: var(--color-danger);
+    background: var(--color-danger-soft);
+  }
+
+  .test-result > span {
+    flex: 1;
+  }
+
+  .test-result-action {
+    color: var(--color-text-muted);
+    font-size: 13px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .test-result-action:hover {
+    color: var(--color-text);
   }
 
   .header-actions {

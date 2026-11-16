@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/SloanGwaltney/whendo/engine/automation"
+	"github.com/SloanGwaltney/whendo/engine/automationsetting"
 	"github.com/SloanGwaltney/whendo/engine/trigger"
 )
 
@@ -38,6 +39,25 @@ var (
 	// ErrShutDown means the runner has been shut down.
 	ErrShutDown = errors.New("the runner has shut down")
 )
+
+// TestValuesMismatchError is the ErrTestValuesDontMatch a test run returns,
+// with the trigger's explanation when it has one.
+type TestValuesMismatchError struct {
+	// Reason is in words for the streamer, or empty when the trigger can't
+	// explain.
+	Reason string
+}
+
+func (mismatch *TestValuesMismatchError) Error() string {
+	if mismatch.Reason == "" {
+		return ErrTestValuesDontMatch.Error()
+	}
+	return fmt.Sprintf("%s: %s", ErrTestValuesDontMatch, mismatch.Reason)
+}
+
+func (mismatch *TestValuesMismatchError) Is(target error) bool {
+	return target == ErrTestValuesDontMatch
+}
 
 // Config holds what a Runner needs.
 type Config struct {
@@ -194,34 +214,44 @@ func (runner *Runner) queueMatchingRuns(event trigger.Event) []RunRecord {
 // TestRun queues a run of one automation, enabled or not, with made-up
 // trigger values instead of a real event. The values still go through the
 // trigger's filter, so it can add its own variables; values a real event
-// could never match are refused with ErrTestValuesDontMatch. See
+// could never match are refused with a *TestValuesMismatchError. It returns
+// the run's ID, so the caller can find its record when it ends. See
 // docs/design/mvp-ui.md#test-runs.
-func (runner *Runner) TestRun(automationID string, triggerVariables map[string]string) error {
+func (runner *Runner) TestRun(automationID string, triggerVariables map[string]string) (string, error) {
 	runner.mutex.Lock()
 	defer runner.mutex.Unlock()
 	if runner.isShutDown {
-		return ErrShutDown
+		return "", ErrShutDown
 	}
 	queue, isFound := runner.queuesByAutomationID[automationID]
 	if !isFound {
-		return fmt.Errorf("%w: %q", ErrAutomationNotFound, automationID)
+		return "", fmt.Errorf("%w: %q", ErrAutomationNotFound, automationID)
 	}
 	testedTrigger, isKnown := runner.catalog.Trigger(queue.automation.Trigger.ID)
 	if !isKnown {
-		return fmt.Errorf("automation %q uses trigger %q, which the catalog doesn't have", automationID, queue.automation.Trigger.ID)
+		return "", fmt.Errorf("automation %q uses trigger %q, which the catalog doesn't have", automationID, queue.automation.Trigger.ID)
 	}
 	testEvent := trigger.Event{TriggerID: queue.automation.Trigger.ID, Variables: triggerVariables}
 	variables, isMatch, err := testedTrigger.Filter(testEvent, queue.automation.Trigger.Settings)
 	if err != nil {
-		return fmt.Errorf("checking the test values against automation %q's trigger: %w", automationID, err)
+		return "", fmt.Errorf("checking the test values against automation %q's trigger: %w", automationID, err)
 	}
 	if !isMatch {
-		return ErrTestValuesDontMatch
+		return "", newTestValuesMismatchError(testedTrigger, triggerVariables, queue.automation.Trigger.Settings)
 	}
-	if !queue.addPendingRun(newPendingRun(variables, true)) {
-		return ErrQueueFull
+	testRun := newPendingRun(variables, true)
+	if !queue.addPendingRun(testRun) {
+		return "", ErrQueueFull
 	}
-	return nil
+	return testRun.runID, nil
+}
+
+func newTestValuesMismatchError(testedTrigger trigger.Trigger, triggerVariables map[string]string, settings automationsetting.Values) *TestValuesMismatchError {
+	explainer, canExplain := testedTrigger.(trigger.MismatchExplainer)
+	if !canExplain {
+		return &TestValuesMismatchError{}
+	}
+	return &TestValuesMismatchError{Reason: explainer.ExplainMismatch(triggerVariables, settings)}
 }
 
 // Shutdown stops every run in progress, cancels every queued run, and waits

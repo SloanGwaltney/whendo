@@ -131,7 +131,10 @@ See [Automation Engine](automation-engine.md#runs-and-queues) for the details.
 ### Test Runs
 Any automation can be run by hand with made-up trigger values. Streamers use this to check an automation before going live, and developers use it to test without real Twitch events, such as redeems on an account without channel points.
 
-- **The form comes from the trigger.** The test form asks for a value for each variable the trigger declares, prefilled with sensible defaults such as the streamer's own name, so a quick check is one click.
+- **Where to start one:** the **Test run** button in the designer's header, or on an automation's row on Home. A test runs the saved version, so with unsaved changes the designer's button reads **Save and test** and saves first. Automations with must-fix problems can't be tested.
+- **The form comes from the trigger.** The test form asks for the trigger's common values, with the rest behind "more". Each trigger works out its own starting values, such as the streamer's own name and, for a chat command, the text it starts with, so a quick check is one click and the starting values always match. Values the automation's settings decide, such as the redeem's reward, and values the trigger works out itself, such as the rest of a chat message, aren't asked for.
+- **Values that would never start the automation are refused,** with the trigger's reason when it has one, such as "The message has to start with “!d20”."
+- **The designer shows how it went.** Steps the test ran are marked ✓, a failed step is marked with its reason, and the paths the run didn't take fade. Editing the automation clears the marks, since they'd describe the old version. A test started from Home says how it went in a short message.
 - **Steps really happen.** A test run posts real chat messages, really shows and hides OBS sources and plays real sound. The test form says so.
 - **Steps that act on the redemption itself fail.** Refunding or fulfilling a redemption needs a real redemption from Twitch, so in a test run those steps fail like any other failed step. Run history still shows that everything before them worked.
 - **Test runs use the normal queue,** so they behave exactly like real runs, including waiting behind a run in progress.

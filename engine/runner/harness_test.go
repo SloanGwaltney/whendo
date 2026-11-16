@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"testing"
 	"time"
@@ -68,6 +69,16 @@ func (eventTrigger) Filter(event trigger.Event, settings automationsetting.Value
 		return nil, false, nil
 	}
 	return maps.Clone(event.Variables), true, nil
+}
+
+func (eventTrigger) TestValues(settings automationsetting.Values, streamer trigger.Streamer) map[string]string {
+	word, _ := settings.Text(wordSettingID)
+	return map[string]string{wordVariable: word, senderVariable: streamer.DisplayName}
+}
+
+func (eventTrigger) ExplainMismatch(variables map[string]string, settings automationsetting.Values) string {
+	word, _ := settings.Text(wordSettingID)
+	return fmt.Sprintf("The word has to be %q.", word)
 }
 
 // fakeStep runs whatever function the harness gives it.

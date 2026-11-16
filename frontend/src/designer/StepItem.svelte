@@ -26,6 +26,10 @@
   const isUnreachable = $derived(stepReport !== undefined && !stepReport.isReachable);
   const actions = useDesignerActions();
   const isMenuOpen = $derived(actions?.openAnchor?.dataset.stepMenu === step.id);
+  const testStep = $derived(view.testRunStepsByID.get(step.id));
+  const hasTestFailure = $derived(Boolean(testStep?.failureReason));
+  // Only a split step's record says which path a test run took.
+  const testOutcomeID = $derived(isSplit ? testStep?.outcomeId : undefined);
 </script>
 
 {#snippet endingControl(outcomeID: string, ending: string, isEnd: boolean)}
@@ -43,7 +47,7 @@
 {/snippet}
 
 <li class="step-item" class:is-unreachable={isUnreachable}>
-  <div class="step" id={stepElementID(step.id)}>
+  <div class="step" class:has-test-failure={hasTestFailure} id={stepElementID(step.id)}>
     <span
       class="number"
       class:is-nested={number === null}
@@ -63,6 +67,9 @@
     {:else}
       <span class="unknown-step">A step Whendo doesn't have: {step.type}</span>
     {/if}
+    {#if testStep}
+      <span class="test-mark" class:is-failed={hasTestFailure} title={hasTestFailure ? "Failed in the test run" : "Ran in the test run"}>{hasTestFailure ? "✗" : "✓"}</span>
+    {/if}
     {#if actions}
       <button
         type="button"
@@ -73,6 +80,9 @@
         onclick={(event) => actions.openStepMenu(step.id, event.currentTarget)}
       >⋯</button>
     {/if}
+    {#if hasTestFailure}
+      <p class="test-failure is-selectable">{testStep?.failureReason}</p>
+    {/if}
   </div>
 
   {#if isSplit}
@@ -82,7 +92,7 @@
         {@const branchSteps = branch?.steps ?? []}
         {@const ending = branch?.afterBranch === AfterBranch.AfterBranchEnd ? "stop here" : "carry on below"}
         {@const commonVariables = (outcome.variables ?? []).filter((variable) => variable.isCommon)}
-        <section class="path">
+        <section class="path" class:is-not-taken={testOutcomeID !== undefined && testOutcomeID !== outcome.id}>
           <div class="path-head">
             <span class="path-label">
               {#if outcome.sentence?.length}
@@ -126,7 +136,7 @@
 
   .step {
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-columns: 28px minmax(0, 1fr) auto auto;
     gap: 10px;
     align-items: start;
     padding: var(--space-2) 6px;
@@ -144,6 +154,31 @@
     to {
       background: transparent;
     }
+  }
+
+  .test-mark {
+    margin-top: 5px;
+    color: var(--color-success);
+    font-weight: 700;
+  }
+
+  .test-mark.is-failed {
+    color: var(--color-danger);
+  }
+
+  .step.has-test-failure {
+    background: var(--color-danger-soft);
+  }
+
+  .test-failure {
+    grid-column: 2 / -1;
+    color: var(--color-danger);
+    font-size: 13px;
+  }
+
+  /* The paths a test run didn't take fade, so the one it took stands out. */
+  .path.is-not-taken {
+    opacity: 0.45;
   }
 
   .is-unreachable > .step {

@@ -114,7 +114,7 @@ func (redeemTrigger) Definition() trigger.Definition {
 			{ID: RedeemedAtVariable, DisplayName: "Time of redeem"},
 			{ID: RedeemerLoginVariable, DisplayName: "Redeemer's login name"},
 			{ID: RedeemerUserIDVariable, DisplayName: "Redeemer's user ID"},
-			{ID: RewardIDVariable, DisplayName: "Reward ID"},
+			{ID: RewardIDVariable, DisplayName: "Reward ID", IsSetBySettings: true},
 			{ID: RedemptionIDVariable, DisplayName: "Redemption ID"},
 		},
 	}

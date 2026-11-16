@@ -128,7 +128,11 @@ A run is **queued**, **running**, **succeeded**, **failed** or **cancelled**. Ca
 ### Test Runs
 A test run targets one automation directly, enabled or not, and joins its queue like any other run.
 
-The test form's values still go through the trigger's filter, so the filter can add its variables, such as the rest of the message. If they don't match, the test run is refused and the reason is shown, for example "this message doesn't start with `!discord`". A test that a real event would never trigger would be misleading.
+Every trigger supplies starting values for the test form, given the automation's settings and the streamer's account, and they must pass its own filter. Only the trigger knows its filter, so this is the one place that can guarantee a form that works as it is.
+
+The test form's values still go through the trigger's filter, so the filter can add its variables, such as the rest of the message. If they don't match, the test run is refused. A trigger that can explain why gives the reason, for example "The message has to start with “!discord”"; others get a general one. A test that a real event would never trigger would be misleading.
+
+Starting a test run returns the run's ID, so the designer can find its record when it ends and show what each step did.
 
 ## Saving Automations
 

@@ -43,3 +43,21 @@ export interface SaveResult {
      */
     "isTurnedOffUntilFixed": boolean;
 }
+
+/**
+ * TestRunStarted tells the designer what became of a test run it asked for.
+ */
+export interface TestRunStarted {
+    /**
+     * RunID identifies the run's record when it ends. It's empty when the
+     * run was refused.
+     */
+    "runId": string;
+
+    /**
+     * MismatchReason says why the values were refused, because a real event
+     * with them would never start the automation. It's empty when the run
+     * started.
+     */
+    "mismatchReason": string;
+}

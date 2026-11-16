@@ -104,11 +104,22 @@ export function SetAutomationEnabled(automationID: string, isEnabled: boolean): 
 }
 
 /**
- * TestRun runs an automation with made-up trigger values. The steps really
- * happen, the same as for a real event. An automation with must-fix problems
- * can't be test run: the runner may still hold its last valid version, and
- * testing that would mislead.
+ * TestRun queues a run of the saved automation with made-up trigger values.
+ * The steps really happen, the same as for a real event. Values a real event
+ * could never match aren't an error: the result says why, for the test form
+ * to show. An automation with must-fix problems can't be test run: the
+ * runner may still hold its last valid version, and testing that would
+ * mislead.
  */
-export function TestRun(automationID: string, triggerVariables: { [_ in string]?: string } | null): $CancellablePromise<void> {
+export function TestRun(automationID: string, triggerVariables: { [_ in string]?: string } | null): $CancellablePromise<$models.TestRunStarted> {
     return $Call.ByID(2217577778, automationID, triggerVariables);
+}
+
+/**
+ * TestValues returns the values a test run of an automation starts with,
+ * which its trigger works out so they'd start it for real. See
+ * docs/design/mvp-ui.md#test-runs.
+ */
+export function TestValues(automationID: string): $CancellablePromise<{ [_ in string]?: string } | null> {
+    return $Call.ByID(258064947, automationID);
 }

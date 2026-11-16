@@ -4,6 +4,7 @@ import {ProblemLevel, ProblemSubject} from "../../bindings/github.com/SloanGwalt
 import type {Automation, AvailableVariable, Report, Step} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
 import {Kind, VariableSource} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
 import type {VariableReference} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
+import type {RunRecord, StepRecord} from "../../bindings/github.com/SloanGwaltney/whendo/engine/runner";
 import type {Definition as StepDefinition} from "../../bindings/github.com/SloanGwaltney/whendo/engine/step";
 import type {Definition as TriggerDefinition} from "../../bindings/github.com/SloanGwaltney/whendo/engine/trigger";
 
@@ -36,6 +37,10 @@ export interface DesignerView {
   // How the variable picker names where a step's values come from, such as
   // “Step 1, Roll a random number”, keyed by step ID.
   stepLabelsByID: Map<string, string>;
+  // What each step did in the last test run, keyed by step ID, so the
+  // designer can mark the steps that ran, the one that failed, and the
+  // paths taken. Empty when there's no test run to show.
+  testRunStepsByID: Map<string, StepRecord>;
 }
 
 // What the designer's components can do. DesignerPage provides it through
@@ -84,7 +89,7 @@ export function settingKey(ownerID: string, settingID: string): string {
   return `${ownerID}:${settingID}`;
 }
 
-export function buildDesignerView(catalog: CatalogDefinitions, report: Report, draft: Automation): DesignerView {
+export function buildDesignerView(catalog: CatalogDefinitions, report: Report, draft: Automation, testRecord: RunRecord | null): DesignerView {
   const triggerDefinition = (catalog.triggers ?? []).find((definition) => definition.id === draft.trigger.id) ?? null;
   const variableNamesByKey = new Map<string, string>();
   const rememberNames = (variables: AvailableVariable[] | null) => {
@@ -140,6 +145,7 @@ export function buildDesignerView(catalog: CatalogDefinitions, report: Report, d
     problemLevelsByStepID,
     settingsWithProblems,
     stepLabelsByID,
+    testRunStepsByID: new Map((testRecord?.steps ?? []).map((stepRecord) => [stepRecord.stepId, stepRecord])),
   };
 }
 

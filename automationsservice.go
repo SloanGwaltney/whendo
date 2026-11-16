@@ -45,6 +45,21 @@ type SaveResult struct {
 	IsTurnedOffUntilFixed bool `json:"isTurnedOffUntilFixed"`
 }
 
+// TestRunStarted tells the designer what became of a test run it asked for.
+type TestRunStarted struct {
+	// RunID identifies the run's record when it ends. It's empty when the
+	// run was refused.
+	RunID string `json:"runId"`
+	// MismatchReason says why the values were refused, because a real event
+	// with them would never start the automation. It's empty when the run
+	// started.
+	MismatchReason string `json:"mismatchReason"`
+}
+
+// generalMismatchReason is for triggers that can't explain a mismatch
+// themselves.
+const generalMismatchReason = "A real event with these values wouldn't start this automation, so the test didn't run."
+
 // AutomationSummary is one row of the automation list. Problem explains why
 // an automation isn't running, such as a setting that's missing or a file
 // that couldn't be read; it's empty for automations that are fine.
@@ -68,6 +83,9 @@ type AutomationsService struct {
 	automationStore *automation.Store
 	runHistoryStore *runhistory.Store
 	logger          *slog.Logger
+	// currentStreamer gives the logged-in account, whose details test runs
+	// start with.
+	currentStreamer func() (trigger.Streamer, error)
 
 	// mutex guards the maps. They hold every saved automation, including
 	// invalid ones the runner refused, so the UI can list them with their
@@ -78,9 +96,10 @@ type AutomationsService struct {
 	unreadableFileReasons map[string]string
 }
 
-func newAutomationsService(catalog *automation.Catalog, automationStore *automation.Store, runHistoryStore *runhistory.Store, logger *slog.Logger) *AutomationsService {
+func newAutomationsService(catalog *automation.Catalog, automationStore *automation.Store, runHistoryStore *runhistory.Store, currentStreamer func() (trigger.Streamer, error), logger *slog.Logger) *AutomationsService {
 	service := &AutomationsService{
 		catalog:               catalog,
+		currentStreamer:       currentStreamer,
 		automationStore:       automationStore,
 		runHistoryStore:       runHistoryStore,
 		logger:                logger,
@@ -301,18 +320,49 @@ func (service *AutomationsService) DeleteAutomation(automationID string) error {
 	return nil
 }
 
-// TestRun runs an automation with made-up trigger values. The steps really
-// happen, the same as for a real event. An automation with must-fix problems
-// can't be test run: the runner may still hold its last valid version, and
-// testing that would mislead.
-func (service *AutomationsService) TestRun(automationID string, triggerVariables map[string]string) error {
+// TestValues returns the values a test run of an automation starts with,
+// which its trigger works out so they'd start it for real. See
+// docs/design/mvp-ui.md#test-runs.
+func (service *AutomationsService) TestValues(automationID string) (map[string]string, error) {
+	service.mutex.Lock()
+	savedAutomation, isFound := service.automationsByID[automationID]
+	service.mutex.Unlock()
+	if !isFound {
+		return nil, fmt.Errorf("%w: %q", runner.ErrAutomationNotFound, automationID)
+	}
+	testedTrigger, isKnown := service.catalog.Trigger(savedAutomation.Trigger.ID)
+	if !isKnown {
+		return nil, fmt.Errorf("automation %q uses trigger %q, which Whendo doesn't have", automationID, savedAutomation.Trigger.ID)
+	}
+	streamer, err := service.currentStreamer()
+	if err != nil {
+		return nil, fmt.Errorf("finding the account to test with: %w", err)
+	}
+	return testedTrigger.TestValues(savedAutomation.Trigger.Settings, streamer), nil
+}
+
+// TestRun queues a run of the saved automation with made-up trigger values.
+// The steps really happen, the same as for a real event. Values a real event
+// could never match aren't an error: the result says why, for the test form
+// to show. An automation with must-fix problems can't be test run: the
+// runner may still hold its last valid version, and testing that would
+// mislead.
+func (service *AutomationsService) TestRun(automationID string, triggerVariables map[string]string) (TestRunStarted, error) {
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
 	problemMessage, isBroken := service.problemsByID[automationID]
 	if isBroken {
-		return fmt.Errorf("%w: %s", errNeedsFixing, problemMessage)
+		return TestRunStarted{}, fmt.Errorf("%w: %s", errNeedsFixing, problemMessage)
 	}
-	return service.runner.TestRun(automationID, triggerVariables)
+	runID, err := service.runner.TestRun(automationID, triggerVariables)
+	var mismatch *runner.TestValuesMismatchError
+	if errors.As(err, &mismatch) {
+		return TestRunStarted{MismatchReason: cmp.Or(mismatch.Reason, generalMismatchReason)}, nil
+	}
+	if err != nil {
+		return TestRunStarted{}, err
+	}
+	return TestRunStarted{RunID: runID}, nil
 }
 
 // RunHistoryDays returns every day that has run history, newest first.

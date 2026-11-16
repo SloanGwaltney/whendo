@@ -2,12 +2,13 @@
   import type {AutomationSummary} from "../bindings/github.com/SloanGwaltney/whendo";
   import Switch from "./Switch.svelte";
 
-  let {summary, triggerName, onOpen, onToggle, onDelete}: {
+  let {summary, triggerName, onOpen, onToggle, onTest, onDelete}: {
     summary: AutomationSummary;
     // The trigger's name, or empty when the automation has none yet.
     triggerName: string;
     onOpen: () => void;
     onToggle: () => void;
+    onTest: () => void;
     onDelete: () => void;
   } = $props();
 
@@ -41,6 +42,7 @@
         isDisabled={needsFixing}
         {onToggle}
       />
+      <button type="button" class="button" disabled={needsFixing} title={needsFixing ? "Fix its problems first" : "Run it now with made-up values"} onclick={onTest}>Test run</button>
     {/if}
     <button type="button" class="button" onclick={onDelete}>Delete</button>
   </div>

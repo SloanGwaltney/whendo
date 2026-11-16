@@ -309,7 +309,7 @@ func TestShutdown_CancelsRunInProgressAndQueuedRuns(t *testing.T) {
 			t.Errorf("got record %+v, want cancelled", record)
 		}
 	}
-	if err := testHarness.runner.TestRun("interrupted", nil); !errors.Is(err, runner.ErrShutDown) {
+	if _, err := testHarness.runner.TestRun("interrupted", nil); !errors.Is(err, runner.ErrShutDown) {
 		t.Errorf("TestRun after shutdown: got error %v, want ErrShutDown", err)
 	}
 }
@@ -320,7 +320,7 @@ func TestTestRun_RunsDisabledAutomationAndMarksItAsTest(t *testing.T) {
 	disabled.IsEnabled = false
 	testHarness.addAutomation(disabled)
 
-	err := testHarness.runner.TestRun("disabled", map[string]string{wordVariable: "hello", senderVariable: "Streamer"})
+	runID, err := testHarness.runner.TestRun("disabled", map[string]string{wordVariable: "hello", senderVariable: "Streamer"})
 
 	if err != nil {
 		t.Fatalf("TestRun returned an error: %v", err)
@@ -328,8 +328,12 @@ func TestTestRun_RunsDisabledAutomationAndMarksItAsTest(t *testing.T) {
 	if said := testHarness.awaitSaid(); said != "tested by Streamer" {
 		t.Errorf("said %q", said)
 	}
-	if record := testHarness.awaitRecord(); !record.IsTest {
+	record := testHarness.awaitRecord()
+	if !record.IsTest {
 		t.Errorf("got record %+v, want it marked as a test", record)
+	}
+	if record.RunID != runID {
+		t.Errorf("record has run ID %q, want the %q TestRun returned", record.RunID, runID)
 	}
 }
 
@@ -337,7 +341,7 @@ func TestTestRun_GivesMissingTriggerVariablesEmptyValues(t *testing.T) {
 	testHarness := newHarness(t)
 	testHarness.addAutomation(testHarness.newAutomation("partial", "hello", testHarness.sayStep("say", "sender:", triggerVariable(senderVariable))))
 
-	err := testHarness.runner.TestRun("partial", map[string]string{wordVariable: "hello"})
+	_, err := testHarness.runner.TestRun("partial", map[string]string{wordVariable: "hello"})
 
 	if err != nil {
 		t.Fatalf("TestRun returned an error: %v", err)
@@ -351,15 +355,19 @@ func TestTestRun_RefusesValuesTheTriggerWouldNeverMatch(t *testing.T) {
 	testHarness := newHarness(t)
 	testHarness.addAutomation(testHarness.newAutomation("picky", "hello", testHarness.sayStep("say", "ran")))
 
-	err := testHarness.runner.TestRun("picky", map[string]string{wordVariable: "goodbye"})
+	_, err := testHarness.runner.TestRun("picky", map[string]string{wordVariable: "goodbye"})
 
 	if !errors.Is(err, runner.ErrTestValuesDontMatch) {
 		t.Errorf("got error %v, want ErrTestValuesDontMatch", err)
 	}
+	var mismatch *runner.TestValuesMismatchError
+	if !errors.As(err, &mismatch) || mismatch.Reason != `The word has to be "hello".` {
+		t.Errorf("got error %v, want the trigger's explanation", err)
+	}
 }
 
 func TestTestRun_ReturnsErrorForUnknownAutomation(t *testing.T) {
-	err := newHarness(t).runner.TestRun("missing", nil)
+	_, err := newHarness(t).runner.TestRun("missing", nil)
 
 	if !errors.Is(err, runner.ErrAutomationNotFound) {
 		t.Errorf("got error %v, want ErrAutomationNotFound", err)
