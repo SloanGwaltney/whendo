@@ -600,3 +600,96 @@ func TestRequests_FailWhenTheConnectionIsLostWhileWaiting(t *testing.T) {
 		t.Fatalf("Scene error = %v, want ErrConnectionLost", err)
 	}
 }
+
+func sceneWithNestedFolders() map[string]any {
+	return map[string]any{
+		"id":   "scene_1",
+		"name": "Gameplay",
+		"nodes": []map[string]any{
+			{"id": "folder_outer", "sceneId": "scene_1", "sceneNodeType": "folder", "name": "Overlays"},
+			{"id": "folder_inner", "sceneId": "scene_1", "sceneNodeType": "folder", "name": "Alerts", "parentId": "folder_outer"},
+			{"id": "item_1", "sceneId": "scene_1", "sceneNodeType": "item", "parentId": "folder_inner", "sourceId": "browser_source_1", "name": "Head Pets", "visible": true, "resourceId": `SceneItem["scene_1", "item_1", "browser_source_1"]`},
+			{"id": "item_2", "sceneId": "scene_1", "sceneNodeType": "item", "sourceId": "webcam_1", "name": "Webcam", "resourceId": `SceneItem["scene_1", "item_2", "webcam_1"]`},
+		},
+	}
+}
+
+func TestProgram_TurnsNodesIntoItemsWithTheirFolders(t *testing.T) {
+	fake := newFakeStreamlabs(t)
+	fake.handle("getScene", func(client net.Conn, request receivedRequest) {
+		writeResult(t, client, request.ID, sceneWithNestedFolders())
+	})
+	program := streamlabs.NewProgram(startConnection(t, fake))
+
+	scene, isFound, err := program.Scene(context.Background(), "scene_1")
+
+	if err != nil || !isFound {
+		t.Fatalf("Scene = %v, %v", isFound, err)
+	}
+	if scene.ID != "scene_1" || scene.Name != "Gameplay" || len(scene.Items) != 2 {
+		t.Fatalf("scene = %+v, want Gameplay with its two items and no folders", scene)
+	}
+	headPets, webcam := scene.Items[0], scene.Items[1]
+	if headPets.ID != "item_1" || headPets.SourceID != "browser_source_1" || headPets.SourceName != "Head Pets" || !headPets.IsVisible {
+		t.Errorf("Head Pets = %+v", headPets)
+	}
+	if fmt.Sprint(headPets.FolderPath) != "[Overlays Alerts]" {
+		t.Errorf("Head Pets' folders = %v, want Overlays then Alerts", headPets.FolderPath)
+	}
+	if len(webcam.FolderPath) != 0 || webcam.IsVisible {
+		t.Errorf("Webcam = %+v, want hidden at the top level", webcam)
+	}
+}
+
+func TestProgram_ShowsAnItemByItsResourceID(t *testing.T) {
+	fake := newFakeStreamlabs(t)
+	fake.handle("getScene", func(client net.Conn, request receivedRequest) {
+		writeResult(t, client, request.ID, sceneWithNestedFolders())
+	})
+	fake.handle("setVisibility", func(client net.Conn, request receivedRequest) {
+		writeLine(t, client, fmt.Sprintf(`{"jsonrpc":"2.0","id":%d}`, request.ID))
+	})
+	program := streamlabs.NewProgram(startConnection(t, fake))
+	scene, _, err := program.Scene(context.Background(), "scene_1")
+	if err != nil {
+		t.Fatalf("Scene: %v", err)
+	}
+
+	err = program.SetItemVisibility(context.Background(), scene.Items[1], true)
+
+	if err != nil {
+		t.Fatalf("SetItemVisibility: %v", err)
+	}
+	lastRequest := fake.receivedRequests()[len(fake.receivedRequests())-1]
+	if lastRequest.Params.Resource != `SceneItem["scene_1", "item_2", "webcam_1"]` {
+		t.Fatalf("resource = %q, want the webcam's resource ID", lastRequest.Params.Resource)
+	}
+}
+
+func TestProgram_GivesErrorsWithoutRequestDetails(t *testing.T) {
+	fake := newFakeStreamlabs(t)
+	fake.handle("getScene", func(client net.Conn, request receivedRequest) {})
+	program := streamlabs.NewProgram(startConnection(t, fake))
+
+	_, _, err := program.Scene(context.Background(), "scene_1")
+
+	if !errors.Is(err, streamlabs.ErrNoAnswer) || err.Error() != "Streamlabs Desktop didn't answer" {
+		t.Fatalf("error = %q, want just that Streamlabs Desktop didn't answer", err)
+	}
+}
+
+func TestProgram_ReportsWhetherItIsConnected(t *testing.T) {
+	fake := newFakeStreamlabs(t)
+	connection := newTestConnection(fake.address())
+	program := streamlabs.NewProgram(connection)
+	if program.IsConnected() {
+		t.Fatal("connected before running")
+	}
+
+	runConnection(t, connection)
+	waitForStatus(t, connection, streamlabs.ConnectionStatusConnected)
+
+	if !program.IsConnected() {
+		t.Fatal("not connected while the connection is")
+	}
+}

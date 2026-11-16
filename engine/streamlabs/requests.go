@@ -24,18 +24,20 @@ const (
 	rateLimitMessage = "Reached the limit of calls"
 )
 
+// These errors name Streamlabs Desktop, since they end up in run history as
+// the reason a step failed.
 var (
 	// ErrNotConnected means Whendo isn't connected to Streamlabs Desktop,
 	// most often because it isn't open.
-	ErrNotConnected = errors.New("streamlabs desktop isn't connected")
+	ErrNotConnected = errors.New("Streamlabs Desktop isn't connected")
 	// ErrNoAnswer means Streamlabs Desktop didn't answer in time.
-	ErrNoAnswer = errors.New("streamlabs desktop didn't answer")
+	ErrNoAnswer = errors.New("Streamlabs Desktop didn't answer")
 	// ErrBusy means Streamlabs Desktop said it was busy until the request
 	// ran out of time.
-	ErrBusy = errors.New("streamlabs desktop stayed busy")
+	ErrBusy = errors.New("Streamlabs Desktop stayed busy")
 	// ErrConnectionLost means the connection ended while a request waited
 	// for its answer.
-	ErrConnectionLost = errors.New("the connection to streamlabs desktop was lost")
+	ErrConnectionLost = errors.New("the connection to Streamlabs Desktop was lost")
 )
 
 // RequestError is an error Streamlabs Desktop answered a request with.
@@ -45,7 +47,7 @@ type RequestError struct {
 }
 
 func (requestError *RequestError) Error() string {
-	return fmt.Sprintf("streamlabs desktop answered with error %d: %s", requestError.Code, requestError.Message)
+	return fmt.Sprintf("Streamlabs Desktop answered with error %d: %s", requestError.Code, requestError.Message)
 }
 
 type requestParameters struct {
@@ -244,6 +246,9 @@ func (connection *Connection) callOn(ctx context.Context, openedLink *link, reso
 
 	requestCtx, cancel := context.WithTimeout(ctx, connection.requestTimeout)
 	defer cancel()
+	// Once Streamlabs has said it's busy, running out of time means it
+	// stayed busy, even if time ran out while waiting for an answer.
+	hasBeenBusy := false
 	for {
 		connection.nextRequestID++
 		// Streamlabs refuses a request whose ID is 0, so IDs start at 1.
@@ -255,15 +260,13 @@ func (connection *Connection) callOn(ctx context.Context, openedLink *link, reso
 		}
 		receivedAnswer, err := openedLink.exchange(requestCtx, sentRequest)
 		if err != nil {
-			return nil, describeExchangeError(ctx, err)
+			return nil, describeExchangeError(ctx, err, hasBeenBusy)
 		}
 		if receivedAnswer.isTryAgain() {
+			hasBeenBusy = true
 			err = waitFor(requestCtx, connection.busyRetryDelay)
 			if err != nil {
-				if ctx.Err() != nil {
-					return nil, ctx.Err()
-				}
-				return nil, ErrBusy
+				return nil, describeExchangeError(ctx, err, hasBeenBusy)
 			}
 			continue
 		}
@@ -274,14 +277,17 @@ func (connection *Connection) callOn(ctx context.Context, openedLink *link, reso
 	}
 }
 
-// describeExchangeError turns running out of time into ErrNoAnswer, unless
-// the caller cancelled.
-func describeExchangeError(callerCtx context.Context, err error) error {
+// describeExchangeError turns running out of time into ErrBusy or
+// ErrNoAnswer, unless the caller cancelled.
+func describeExchangeError(callerCtx context.Context, err error, hasBeenBusy bool) error {
 	if callerCtx.Err() != nil {
 		return callerCtx.Err()
 	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return ErrNoAnswer
+	if !errors.Is(err, context.DeadlineExceeded) {
+		return err
 	}
-	return err
+	if hasBeenBusy {
+		return ErrBusy
+	}
+	return ErrNoAnswer
 }

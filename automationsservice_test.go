@@ -17,6 +17,7 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/automationsetting"
 	"github.com/SloanGwaltney/whendo/engine/coresteps"
 	"github.com/SloanGwaltney/whendo/engine/runhistory"
+	"github.com/SloanGwaltney/whendo/engine/scenes"
 	"github.com/SloanGwaltney/whendo/engine/trigger"
 	"github.com/SloanGwaltney/whendo/engine/twitchapi"
 	"github.com/SloanGwaltney/whendo/engine/twitcheventsub"
@@ -44,7 +45,7 @@ func newServiceFixture(t *testing.T, prepareFolder func(automationFolder string)
 		prepareFolder(automationFolder)
 	}
 	known := &knownRewards{}
-	catalog, err := newAppCatalog(twitchapi.NewClient(twitchapi.Config{}), known)
+	catalog, err := newAppCatalog(twitchapi.NewClient(twitchapi.Config{}), known, noStreamingSoftware{}, &scenes.KnownScenes{})
 	if err != nil {
 		t.Fatalf("newAppCatalog returned an error: %v", err)
 	}
@@ -270,7 +271,8 @@ func TestAutomationsService_CatalogListsTriggersAndSteps(t *testing.T) {
 	catalog := fixture.service.Catalog()
 
 	twitchSteps := twitchsteps.Steps(twitchapi.NewClient(twitchapi.Config{}), &knownRewards{})
-	if len(catalog.Triggers) != len(twitcheventsub.Triggers()) || len(catalog.Steps) != len(coresteps.Steps())+len(twitchSteps) {
+	sceneSteps := scenes.Steps(noStreamingSoftware{}, &scenes.KnownScenes{})
+	if len(catalog.Triggers) != len(twitcheventsub.Triggers()) || len(catalog.Steps) != len(coresteps.Steps())+len(twitchSteps)+len(sceneSteps) {
 		t.Errorf("got %d triggers and %d steps", len(catalog.Triggers), len(catalog.Steps))
 	}
 }
@@ -278,7 +280,7 @@ func TestAutomationsService_CatalogListsTriggersAndSteps(t *testing.T) {
 func TestNewAppCatalog_AcceptsEveryTriggerAndStepDefinition(t *testing.T) {
 	// Building the catalog checks every definition the designer will show,
 	// such as each sentence placing each setting once.
-	_, err := newAppCatalog(twitchapi.NewClient(twitchapi.Config{}), &knownRewards{})
+	_, err := newAppCatalog(twitchapi.NewClient(twitchapi.Config{}), &knownRewards{}, noStreamingSoftware{}, &scenes.KnownScenes{})
 
 	if err != nil {
 		t.Errorf("newAppCatalog returned an error: %v", err)
@@ -350,4 +352,11 @@ func TestAutomationsService_TestRunExplainsValuesThatWouldNeverMatch(t *testing.
 	if started.RunID != "" || !strings.Contains(started.MismatchReason, "“!test”") {
 		t.Errorf("got %+v, want no run and a reason naming !test", started)
 	}
+}
+
+// noStreamingSoftware stands for a streamer who hasn't chosen a program.
+type noStreamingSoftware struct{}
+
+func (noStreamingSoftware) Chosen() (scenes.ChosenProgram, bool) {
+	return scenes.ChosenProgram{}, false
 }

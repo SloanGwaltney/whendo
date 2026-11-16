@@ -16,6 +16,7 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/credentials"
 	"github.com/SloanGwaltney/whendo/engine/runhistory"
 	"github.com/SloanGwaltney/whendo/engine/runner"
+	"github.com/SloanGwaltney/whendo/engine/scenes"
 	"github.com/SloanGwaltney/whendo/engine/streamlabs"
 	"github.com/SloanGwaltney/whendo/engine/trigger"
 	"github.com/SloanGwaltney/whendo/engine/twitchapi"
@@ -73,7 +74,10 @@ func main() {
 	// Both services share what the last list of redeems said, so automations
 	// can be checked for redeems deleted in Twitch.
 	knownRewards := &knownRewards{}
-	automationsService, err := newAutomationsServiceForApp(folder, runHistoryStore, settingsService.runHistoryRetentionDays, knownRewards, twitchSession, twitchClient)
+	streamingSoftwareService := newStreamingSoftwareService(settingsService, streamlabs.Config{Logger: slog.Default()}, func(state StreamingSoftwareState) {
+		app.Event.Emit(streamingSoftwareStateChangedEvent, state)
+	})
+	automationsService, err := newAutomationsServiceForApp(folder, runHistoryStore, settingsService.runHistoryRetentionDays, knownRewards, streamingSoftwareService, twitchSession, twitchClient)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -85,9 +89,6 @@ func main() {
 			app.Event.Emit(twitchConnectionStateChangedEvent, state)
 		},
 		HTTPClient: twitchHTTPClient,
-	})
-	streamingSoftwareService := newStreamingSoftwareService(settingsService, streamlabs.Config{Logger: slog.Default()}, func(state StreamingSoftwareState) {
-		app.Event.Emit(streamingSoftwareStateChangedEvent, state)
 	})
 
 	// Create a new Wails application by providing the necessary options.
@@ -162,9 +163,11 @@ func main() {
 }
 
 // newAppCatalog returns every trigger and step Whendo offers. The refund and
-// fulfill steps check redeems against the last list that loaded.
-func newAppCatalog(twitchClient *twitchapi.Client, knownRewards *knownRewards) (*automation.Catalog, error) {
+// fulfill steps check redeems against the last list that loaded, and the
+// show and hide steps act on the streaming software the streamer chose.
+func newAppCatalog(twitchClient *twitchapi.Client, knownRewards *knownRewards, streamingSoftware scenes.Program, knownScenes *scenes.KnownScenes) (*automation.Catalog, error) {
 	steps := append(coresteps.Steps(), twitchsteps.Steps(twitchClient, knownRewards)...)
+	steps = append(steps, scenes.Steps(streamingSoftware, knownScenes)...)
 	catalog, err := automation.NewCatalog(twitcheventsub.Triggers(), steps)
 	if err != nil {
 		return nil, fmt.Errorf("building the catalog of triggers and steps: %w", err)
@@ -175,8 +178,8 @@ func newAppCatalog(twitchClient *twitchapi.Client, knownRewards *knownRewards) (
 // newAutomationsServiceForApp builds the automation engine with every
 // trigger and step Whendo offers, storing automations in Whendo's data
 // folder.
-func newAutomationsServiceForApp(folder string, runHistoryStore *runhistory.Store, runHistoryRetentionDays func() int, knownRewards *knownRewards, twitchSession *twitchauth.Session, twitchClient *twitchapi.Client) (*AutomationsService, error) {
-	catalog, err := newAppCatalog(twitchClient, knownRewards)
+func newAutomationsServiceForApp(folder string, runHistoryStore *runhistory.Store, runHistoryRetentionDays func() int, knownRewards *knownRewards, streamingSoftware *StreamingSoftwareService, twitchSession *twitchauth.Session, twitchClient *twitchapi.Client) (*AutomationsService, error) {
+	catalog, err := newAppCatalog(twitchClient, knownRewards, streamingSoftware.program(), streamingSoftware.knownScenes)
 	if err != nil {
 		return nil, err
 	}

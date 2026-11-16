@@ -27,9 +27,9 @@ const (
 	testStreamlabsRequestTimeout  = 300 * time.Millisecond
 )
 
-// fakeStreamlabsServer answers every request with an empty result, which
-// is enough for the connection to count as connected. It counts the
-// clients that are connected right now.
+// fakeStreamlabsServer answers getScenes with one scene, and every other
+// request with a scene ID, which is enough for the connection to count as
+// connected. It counts the clients that are connected right now.
 type fakeStreamlabsServer struct {
 	listener         net.Listener
 	connectedClients atomic.Int32
@@ -80,19 +80,27 @@ func (server *fakeStreamlabsServer) answerClient(t *testing.T, client net.Conn) 
 			return
 		}
 		var request struct {
-			ID int64 `json:"id"`
+			ID     int64  `json:"id"`
+			Method string `json:"method"`
 		}
 		err = json.Unmarshal(line, &request)
 		if err != nil {
 			t.Errorf("the fake Streamlabs got a line that isn't JSON: %q", line)
 			return
 		}
-		_, err = fmt.Fprintf(client, "{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":\"scene_1\"}\n", request.ID)
+		result := `"scene_1"`
+		if request.Method == "getScenes" {
+			result = fakeStreamlabsScenes
+		}
+		_, err = fmt.Fprintf(client, "{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":%s}\n", request.ID, result)
 		if err != nil {
 			return
 		}
 	}
 }
+
+// fakeStreamlabsScenes is the fake's one scene, with Head Pets in it.
+const fakeStreamlabsScenes = `[{"id":"scene_1","name":"Gameplay","nodes":[{"id":"item_1","sceneNodeType":"item","sourceId":"source_1","name":"Head Pets","resourceId":"item_1_resource"}]}]`
 
 type streamingSoftwareFixture struct {
 	service       *StreamingSoftwareService
@@ -240,5 +248,55 @@ func TestChooseStreamingSoftware_RefusesUnknownSoftware(t *testing.T) {
 	}
 	if software := fixture.service.GetState().Software; software != appsettings.StreamingSoftwareNone {
 		t.Errorf("software = %q after a refused choice, want none", software)
+	}
+}
+
+func TestListScenes_RefusesWhenNoProgramIsChosen(t *testing.T) {
+	server := startFakeStreamlabsServer(t)
+	fixture := newStreamingSoftwareFixture(t, server)
+
+	_, err := fixture.service.ListScenes(context.Background())
+
+	if !errors.Is(err, errNoStreamingSoftwareChosen) {
+		t.Fatalf("error = %v, want errNoStreamingSoftwareChosen", err)
+	}
+}
+
+func TestListScenes_ReturnsTheChosenProgramsScenes(t *testing.T) {
+	server := startFakeStreamlabsServer(t)
+	fixture := newStreamingSoftwareFixture(t, server)
+	err := fixture.service.ChooseStreamingSoftware(appsettings.StreamingSoftwareStreamlabsDesktop)
+	if err != nil {
+		t.Fatalf("choosing Streamlabs: %v", err)
+	}
+	waitUntil(t, "Streamlabs is connected", func() bool {
+		return fixture.service.GetState().Status == streamlabs.ConnectionStatusConnected
+	})
+
+	sceneList, err := fixture.service.ListScenes(context.Background())
+
+	if err != nil {
+		t.Fatalf("ListScenes: %v", err)
+	}
+	if len(sceneList) != 1 || sceneList[0].Name != "Gameplay" || len(sceneList[0].Items) != 1 || sceneList[0].Items[0].SourceName != "Head Pets" {
+		t.Fatalf("scenes = %+v, want Gameplay with Head Pets", sceneList)
+	}
+}
+
+func TestStreamingSoftwareService_GivesStepsTheChosenProgram(t *testing.T) {
+	server := startFakeStreamlabsServer(t)
+	fixture := newStreamingSoftwareFixture(t, server)
+	if _, isChosen := fixture.service.program().Chosen(); isChosen {
+		t.Fatal("a program is chosen before the streamer chose one")
+	}
+
+	err := fixture.service.ChooseStreamingSoftware(appsettings.StreamingSoftwareStreamlabsDesktop)
+
+	if err != nil {
+		t.Fatalf("choosing Streamlabs: %v", err)
+	}
+	chosen, isChosen := fixture.service.program().Chosen()
+	if !isChosen || chosen.Name != streamlabs.ProgramName {
+		t.Fatalf("chosen = %+v, %v; want Streamlabs Desktop", chosen, isChosen)
 	}
 }

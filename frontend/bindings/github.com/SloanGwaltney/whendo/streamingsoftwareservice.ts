@@ -15,6 +15,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as appsettings$0 from "./engine/appsettings/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as scenes$0 from "./engine/scenes/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -33,4 +36,12 @@ export function ChooseStreamingSoftware(software: appsettings$0.StreamingSoftwar
  */
 export function GetState(): $CancellablePromise<$models.StreamingSoftwareState> {
     return $Call.ByID(1660630157);
+}
+
+/**
+ * ListScenes returns every scene in the chosen program, for the source
+ * picker, and remembers them for pointing out sources that are gone.
+ */
+export function ListScenes(): $CancellablePromise<scenes$0.Scene[] | null> {
+    return $Call.ByID(3301905117);
 }

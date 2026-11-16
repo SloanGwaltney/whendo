@@ -3,6 +3,8 @@
   import {Kind} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
   import type {Definition as SettingDefinition, VariableReference} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
   import {describeReward, loadRewardsIfNeeded, rewardSettingKind} from "../rewards.svelte";
+  import {describeSource, loadScenesIfNeeded, sourceSettingKind} from "../scenes.svelte";
+  import {isStreamingSoftwareConnected, streamingSoftwareState} from "../streamingSoftware.svelte";
   import {formatDuration, variableKey} from "./designerModel";
   import type {Choice, DesignerView, TemplatePart} from "./designerModel";
   import ValuePill from "./ValuePill.svelte";
@@ -35,6 +37,15 @@
     }
   });
 
+  const isSource = $derived(definition.kind === sourceSettingKind);
+  // A source is named by its current name when the program is connected,
+  // so a renamed one shows its new name.
+  $effect(() => {
+    if (isSource && isStreamingSoftwareConnected(streamingSoftwareState.current)) {
+      loadScenesIfNeeded();
+    }
+  });
+
   const optionName = $derived((definition.options ?? []).find((option) => option.id === value)?.displayName ?? String(value));
 </script>
 
@@ -48,6 +59,8 @@
   <ValuePill reference={value as VariableReference} {view} isBroken={!isAvailable(value as VariableReference)}/>
 {:else if isReward}
   {describeReward(String(value))}
+{:else if isSource}
+  {describeSource(value)}
 {:else if definition.kind === Kind.KindChoiceList}
   {#each choices as choice, choiceIndex (choice.id)}{#if choiceIndex > 0}{choiceIndex === choices.length - 1 ? " or " : ", "}{/if}<span class="user-text">{choice.text}</span>{/each}
 {:else}

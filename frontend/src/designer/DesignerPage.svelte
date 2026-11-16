@@ -13,6 +13,8 @@
   import Switch from "../Switch.svelte";
   import TestRunDialog from "../TestRunDialog.svelte";
   import {rewardsState} from "../rewards.svelte";
+  import {scenesState} from "../scenes.svelte";
+  import {streamingSoftwareState} from "../streamingSoftware.svelte";
   import Toast from "../Toast.svelte";
   import {buildDesignerView, provideDesignerActions, stepElementID, triggerElementID, triggerOwnerID} from "./designerModel";
   import DesignerProblems from "./DesignerProblems.svelte";
@@ -86,6 +88,16 @@
   // when a list arrives.
   $effect(() => {
     if (rewardsState.list === null) {
+      return;
+    }
+    untrack(() => checkDraft());
+  });
+
+  // The show and hide steps' notes depend on whether the streaming software
+  // is connected and on the last list of scenes, which change outside the
+  // draft, so the draft is checked again when either does.
+  $effect(() => {
+    if (streamingSoftwareState.current === null && scenesState.list === null) {
       return;
     }
     untrack(() => checkDraft());

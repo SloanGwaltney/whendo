@@ -9,6 +9,9 @@
   import {formatDuration} from "./designerModel";
   import OptionList from "./OptionList.svelte";
   import RewardPicker from "./RewardPicker.svelte";
+  import {sourceSettingKind} from "../scenes.svelte";
+  import type {SourceInScene} from "../scenes.svelte";
+  import SourcePicker from "./SourcePicker.svelte";
   import TemplateEditor from "./TemplateEditor.svelte";
   import VariablePicker from "./VariablePicker.svelte";
 
@@ -82,6 +85,14 @@
       selectedRewardID={typeof value === "string" ? value : null}
       onPick={(rewardID) => {
         onChange(rewardID);
+        onDone();
+      }}
+    />
+  {:else if definition.kind === sourceSettingKind}
+    <SourcePicker
+      selected={(value as SourceInScene | null) ?? null}
+      onPick={(source) => {
+        onChange(source);
         onDone();
       }}
     />

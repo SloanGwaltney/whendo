@@ -64,7 +64,7 @@ Two steps rather than one with a show or hide setting, like refund and fulfill: 
 
 ### Picking a Source
 - **One picker for both.** The popover lists every scene as a heading with its sources under it, sources in folders indented under their folder. It has a search box, since streamers often have dozens of sources. Picking a source picks its scene too, so there's never a source picked without a scene, or a scene change that has to clear the source.
-- **Names come from the program when it's connected.** A renamed scene or source shows its new name, and saving the automation stores it.
+- **Names come from the program when it's connected.** A renamed scene or source shows its new name in the sentence. The setting keeps the names it was picked with until the source is picked again; they're only used while the program isn't connected, and to find a source whose IDs are gone.
 - **Not connected:** the popover says "Open Streamlabs Desktop to pick a source," or "Choose your streaming software in Settings" if none is chosen. The step keeps showing its stored names.
 
 ### Good to Know
@@ -76,7 +76,7 @@ These are never must-fix; see [Problems](mvp-ui.md#problems).
 | A program is chosen but not connected | "Streamlabs Desktop isn't connected, so this step will fail until it is." |
 | Connected, and the scene or source is gone, even by name | "“Head Pets” isn't in “Gameplay” any more. Pick the source again." |
 
-Like [missing redeems](twitch-redeems.md#missing-redeems), a source is only called missing when the program says so, never because the list couldn't be loaded.
+Like [missing redeems](twitch-redeems.md#missing-redeems), a source is only called missing when the program says so, never because the list couldn't be loaded. The last list is loaded when the program connects and whenever the picker lists scenes, and dropped when the program disconnects. The designer checks the automation again when the connection or the list changes, so the notes stay current.
 
 ### Failures
 Each is recorded in run history with the reason:
