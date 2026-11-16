@@ -1,6 +1,7 @@
 <script lang="ts">
   import {startPageId} from "./navigation";
   import type {PageId} from "./navigation";
+  import HomePage from "./HomePage.svelte";
   import PlaceholderPage from "./PlaceholderPage.svelte";
   import SettingsPage from "./SettingsPage.svelte";
   import Sidebar from "./Sidebar.svelte";
@@ -15,7 +16,7 @@
   <Sidebar {currentPageId} {accountLogin} onNavigate={(pageId) => (currentPageId = pageId)}/>
   <main>
     {#if currentPageId === "home"}
-      <PlaceholderPage title="Home" futureContents="Your automations and the sample gallery will be here."/>
+      <HomePage/>
     {:else if currentPageId === "redeems"}
       <PlaceholderPage title="Redeems" futureContents="Your channel point redeems will be here."/>
     {:else if currentPageId === "runHistory"}

@@ -48,12 +48,15 @@ type SaveResult struct {
 // AutomationSummary is one row of the automation list. Problem explains why
 // an automation isn't running, such as a setting that's missing or a file
 // that couldn't be read; it's empty for automations that are fine.
+// IsUnreadable means the automation's file couldn't be read, so it can only
+// be deleted; its name is then the file's name.
 type AutomationSummary struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	IsEnabled bool   `json:"isEnabled"`
-	TriggerID string `json:"triggerId"`
-	Problem   string `json:"problem"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	IsEnabled    bool   `json:"isEnabled"`
+	TriggerID    string `json:"triggerId"`
+	Problem      string `json:"problem"`
+	IsUnreadable bool   `json:"isUnreadable"`
 }
 
 // AutomationsService connects the automation engine to the UI. It loads
@@ -162,7 +165,7 @@ func (service *AutomationsService) ListAutomations() []AutomationSummary {
 		})
 	}
 	for fileName, reason := range service.unreadableFileReasons {
-		summaries = append(summaries, AutomationSummary{ID: strings.TrimSuffix(fileName, automationFileExtension), Name: fileName, Problem: reason})
+		summaries = append(summaries, AutomationSummary{ID: strings.TrimSuffix(fileName, automationFileExtension), Name: fileName, Problem: reason, IsUnreadable: true})
 	}
 	slices.SortFunc(summaries, func(first AutomationSummary, second AutomationSummary) int {
 		return cmp.Compare(strings.ToLower(first.Name), strings.ToLower(second.Name))

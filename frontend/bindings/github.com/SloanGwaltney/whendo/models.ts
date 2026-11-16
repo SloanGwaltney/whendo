@@ -12,6 +12,8 @@ import * as trigger$0 from "./engine/trigger/models.js";
  * AutomationSummary is one row of the automation list. Problem explains why
  * an automation isn't running, such as a setting that's missing or a file
  * that couldn't be read; it's empty for automations that are fine.
+ * IsUnreadable means the automation's file couldn't be read, so it can only
+ * be deleted; its name is then the file's name.
  */
 export interface AutomationSummary {
     "id": string;
@@ -19,6 +21,7 @@ export interface AutomationSummary {
     "isEnabled": boolean;
     "triggerId": string;
     "problem": string;
+    "isUnreadable": boolean;
 }
 
 /**

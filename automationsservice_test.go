@@ -124,6 +124,9 @@ func TestAutomationsService_ListsSavedAutomationsWithTheirProblems(t *testing.T)
 	if summaries["invalid"].Problem == "" || summaries["broken"].Problem == "" {
 		t.Errorf("got %+v and %+v, want both to explain their problem", summaries["invalid"], summaries["broken"])
 	}
+	if summaries["invalid"].IsUnreadable || !summaries["broken"].IsUnreadable {
+		t.Errorf("got %+v and %+v, want only the file that couldn't be read marked unreadable", summaries["invalid"], summaries["broken"])
+	}
 }
 
 func (fixture *serviceFixture) save(savedAutomation automation.Automation) SaveResult {
