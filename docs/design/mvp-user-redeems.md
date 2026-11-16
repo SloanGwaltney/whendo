@@ -34,7 +34,7 @@ Same as Hydrate, each with its own messages. Chug It is a more expensive version
 Same as Hydrate, with its own message.
 
 ### Head Pets
-1. Show a browser source in OBS.
+1. Show a browser source in Streamlabs Desktop.
 2. Wait a set amount of time.
 3. Hide the browser source.
 
@@ -65,7 +65,7 @@ Building the redeems above requires the following.
 - **Roll a random number** within a range. This provides the roll as a variable.
 - **Check a condition**, such as "the roll is 20." This step has two outcomes, one for when the condition is true and one for when it's false.
 - **Wait** for a set amount of time.
-- **Show or hide an OBS source.**
+- **Show or hide a source** in Streamlabs Desktop. See [Streaming Software](streaming-software.md).
 - **Wait for a chat message** that starts with one of a list of choices, such as `!a1` or `!a2`, with a time limit, optionally accepting it only from a specific user such as the redeemer. This step has one outcome per choice, plus one for timing out. Matching follows the same "starts with" rule as the chat message trigger; see [MVP UI Design](mvp-ui.md#structure).
 - **Refund a redemption.**
 - **Mark a redemption as fulfilled.**

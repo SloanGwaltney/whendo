@@ -15,7 +15,7 @@ For a fuller overview and an index of all project documents, see [docs/overview.
 - **Desktop shell:** Wails v3, which renders the UI in the operating system's native web view (WebView2 on Windows) rather than bundling a browser.
 - **Frontend:** TypeScript and Svelte 5 (runes mode) with Vite, running in the web view. Not SvelteKit.
 - **Platforms:** cross-platform (Windows, macOS, Linux). Windows is the primary target and is expected to be 80–90% of users, so prioritize and test it first.
-- **Initial integrations:** Twitch, OBS (through the OBS WebSocket protocol) and audio playback to a chosen output device.
+- **Initial integrations:** Twitch, Streamlabs Desktop (through its local API) and audio playback to a chosen output device. OBS, through the OBS WebSocket protocol, comes later.
 - **Secrets:** stored in the operating system's credential store through `github.com/zalando/go-keyring`, never in plain files. See [ADR 0003](docs/adr/0003-go-keyring-for-credential-storage.md).
 - **cgo:** cgo and a C toolchain are expected. Prefer pure Go dependencies when they're good enough, but don't contort the design to avoid cgo.
 

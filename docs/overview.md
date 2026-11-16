@@ -6,7 +6,7 @@ This is the starting point for understanding Whendo. It explains what the projec
 
 ## What Whendo Is
 
-Whendo is a desktop stream automation tool for Twitch streamers, in the same space as Streamer.bot and Mix It Up. It reacts to things that happen on a stream, such as channel point redeems, chat commands and follows, and runs automations in response: posting to chat, playing text-to-speech, showing and hiding OBS sources, and so on.
+Whendo is a desktop stream automation tool for Twitch streamers, in the same space as Streamer.bot and Mix It Up. It reacts to things that happen on a stream, such as channel point redeems, chat commands and follows, and runs automations in response: posting to chat, playing text-to-speech, showing and hiding sources in the streamer's streaming software, and so on.
 
 Every automation reads like a sentence: **when** something happens, **do** these steps. That's where the name comes from.
 
@@ -49,7 +49,7 @@ The MVP is scoped to fully supporting the channel point redeems of our first use
 That means:
 - **Twitch** login, with triggers for redeems, chat commands and follows.
 - **Chat messages** with variables inserted.
-- **OBS** control through the OBS WebSocket protocol.
+- **Streamlabs Desktop** control, to show and hide sources, through its local API. Our first user streams with Streamlabs Desktop, and it's likely common among the streamers Whendo is for. OBS support comes later.
 - **Audio playback** to a chosen output device.
 - **TTS Monster** text-to-speech, replacing the user's current Streamer.bot and Mix It Up chain.
 - Screens for automations, redeems, run history and settings.
@@ -80,6 +80,9 @@ That means:
 - **[Twitch EventSub](design/twitch-eventsub.md):** how Whendo receives redeems, chat messages and follows: triggers and their variables, subscriptions, the connection and reconnecting, and connection status.
 - **[Twitch Redeems](design/twitch-redeems.md):** listing, creating and editing channel point redeems, recreating dashboard redeems in Whendo, the redeem picker, the placeholder redeem, and developing without channel points.
 - **[Twitch Steps](design/twitch-steps.md):** the steps that act on Twitch as the streamer, starting with sending a chat message, and how they fail.
+- **[Streaming Software](design/streaming-software.md):** one set of steps for every streaming program: choosing the program, connection status, and the steps that show and hide sources.
+- **[Streamlabs Desktop](design/streamlabs-desktop.md):** connecting to Streamlabs Desktop through its local API with no setup, why we trust that connection, and its requests.
+- **[OBS](design/obs.md):** later, not in the MVP. Connecting to OBS through its WebSocket server, and setting it up.
 - **[Automation Engine](design/automation-engine.md):** how events become runs: trigger settings and filters, the step contract, variables and templates, queuing, the automation file format and run history files.
 
 ### Architecture

@@ -78,7 +78,7 @@ Steps that need no integration live in the engine:
 - **Roll a random number:** `wholeNumber` settings for the lowest and highest values, both included. Provides the roll.
 - **Check a condition:** a `variable`, a comparison, and a `template` to compare against. Comparisons are "is," "is not," "is more than" and "is less than." Text comparisons ignore capitalization. "More than" and "less than" compare numbers, and fail the step if either side isn't a number. Two outcomes: yes and no.
 
-Twitch steps (send a chat message, wait for a chat message, refund and fulfill) and the OBS and audio steps are designed with their integrations.
+Twitch steps (send a chat message, wait for a chat message, refund and fulfill) and the streaming software and audio steps are designed with their integrations.
 
 ## Variables
 
@@ -118,7 +118,7 @@ If a reference points to a variable that isn't available, for example because th
 
 ### Disabling and Deleting
 - **Disabling an automation empties its queue.** Each queued run is recorded in run history as cancelled. This is the safest choice and the easiest to change if it turns out to be wrong.
-- **A run already in progress finishes.** Stopping one partway through could leave things half done, like an OBS source that's shown but never hidden in Head Pets.
+- **A run already in progress finishes.** Stopping one partway through could leave things half done, like a source that's shown but never hidden in Head Pets.
 - **Deleting an automation** does the same as disabling it, then removes it.
 - **Shutting down stops runs in progress.** A waiting step stops right away, so quitting partway through Head Pets leaves the source showing. That's accepted: avoiding it would mean steps that undo themselves, which is a lot of work for a rare case the streamer can fix by hand.
 
@@ -214,7 +214,7 @@ The check returns:
 
 **Steps can add notes** the same way, about how they're used: their own settings and the automation's trigger. Refund and fulfill use this to point out a redeem whose redemptions Twitch won't let Whendo change; see [Twitch Steps](twitch-steps.md#refund-and-fulfill). They're left out while the step's settings have problems, or when the step needs another trigger.
 
-Problems that depend on the world outside the automation, such as OBS not being connected, aren't part of the check. They belong to the integrations, and will come with the first steps that need them.
+Problems that depend on the world outside the automation, such as Streamlabs Desktop not being connected, aren't part of the check. They belong to the integrations, and will come with the first steps that need them.
 
 ### What Definitions Tell the Designer
 Trigger and step definitions carry the text the designer shows, so an integration that adds a step also says how it reads:
