@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -173,6 +174,10 @@ func TestSendChatMessage_PostsMessageAsStreamerInOwnChannel(t *testing.T) {
 	if err != nil || result.OutcomeID != step.DefaultOutcomeID {
 		t.Fatalf("got result %+v, error %v", result, err)
 	}
+	wantDetails := []step.Detail{{Name: "Message", Value: "Thanks for checking in, Cooler_User!"}}
+	if !slices.Equal(result.Details, wantDetails) {
+		t.Errorf("got details %+v, want %+v", result.Details, wantDetails)
+	}
 	requests := fake.receivedRequests()
 	if len(requests) != 1 {
 		t.Fatalf("got %d requests, want 1", len(requests))
@@ -223,10 +228,14 @@ func TestSendChatMessage_FailsWhenRenewedTokenIsAlsoRejected(t *testing.T) {
 func TestSendChatMessage_FailsWithTwitchsReasonWhenMessageIsDropped(t *testing.T) {
 	_, server := newFakeTwitch(t, fakeResponse{http.StatusOK, droppedSlowMode})
 
-	_, err := sendChatMessageStep(t, server, &fakeAccount{isLoggedIn: true}).Run(context.Background(), plainMessage(t, "hello"))
+	result, err := sendChatMessageStep(t, server, &fakeAccount{isLoggedIn: true}).Run(context.Background(), plainMessage(t, "hello"))
 
 	if err == nil || !strings.Contains(err.Error(), "slow mode") {
 		t.Errorf("got error %v, want the drop reason", err)
+	}
+	wantDetails := []step.Detail{{Name: "Message", Value: "hello"}}
+	if !slices.Equal(result.Details, wantDetails) {
+		t.Errorf("got details %+v, want the message Twitch dropped", result.Details)
 	}
 }
 

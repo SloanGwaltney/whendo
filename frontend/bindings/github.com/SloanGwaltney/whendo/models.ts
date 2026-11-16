@@ -34,6 +34,15 @@ export interface CatalogDefinitions {
 }
 
 /**
+ * RetentionLimits are the run history retention periods the user can
+ * choose, in days, so the Settings page can say so.
+ */
+export interface RetentionLimits {
+    "minimumDays": number;
+    "maximumDays": number;
+}
+
+/**
  * SaveResult tells the designer what saving did beyond saving.
  */
 export interface SaveResult {

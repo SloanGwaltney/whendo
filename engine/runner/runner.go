@@ -299,6 +299,7 @@ func (run pendingRun) recordAsSkipped(skippedAutomation automation.Automation, s
 		AutomationID:     skippedAutomation.ID,
 		AutomationName:   skippedAutomation.Name,
 		IsTest:           run.isTest,
+		TriggerID:        skippedAutomation.Trigger.ID,
 		TriggerVariables: run.triggerVariables,
 		QueuedAt:         run.queuedAt,
 		EndedAt:          time.Now(),

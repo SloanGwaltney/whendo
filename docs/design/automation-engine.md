@@ -53,6 +53,7 @@ A step definition mirrors a trigger definition:
 - **Settings,** as above.
 - **Outcomes,** each with an ID, a display name and the variables it provides. Most steps have one outcome. Outcomes can depend on settings: "wait for a chat message" has one outcome per choice plus "timed out," so the definition provides a function from settings to outcomes rather than a fixed list.
 - **Running** takes a context and the step's settings with variables already resolved. It returns the outcome taken and the values of that outcome's variables, or an error. An error fails the run; see [Failures](mvp-ui.md#failures).
+- **Details** are optional notes a step returns about what it did, such as the chat message it sent, kept only for run history. Unlike variables, later steps can't use them, so the designer doesn't offer them. They're kept even when the step fails, so run history shows what it tried.
 
 The context is cancelled when Whendo shuts down, so a step that waits must stop when it is.
 
@@ -223,10 +224,11 @@ Trigger and step definitions carry the text the designer shows, so an integratio
 Run history is stored in files, one per day, at `<user config folder>/whendo/run-history/<YYYY-MM-DD>.jsonl`. Each line is one finished run.
 
 - **A run is written once, when it ends.** Queued and running runs are kept in memory and shown from there. A run in progress when Whendo crashes is lost from history. That's acceptable for the MVP, and much simpler than updating records in place.
-- **Each record holds** the automation's ID and its name at the time, whether it was a test, the trigger's variables, when it was queued, started and ended, its status, and each step it ran with its outcome or failure reason.
+- **Each record holds** the automation's ID and its name at the time, whether it was a test, the trigger's ID and variables, when it was queued, started and ended, its status, and each step it ran with its outcome or failure reason.
+- **Records keep their labels as text.** Each step keeps its name, the values it provided to later steps with their names, such as the number a roll landed on, any details it reported about what it did, such as the chat message it sent, and, for a step that splits, the label of the branch it took, such as "If they type !a1." That label can depend on settings edited later, or on an automation since deleted, so looking it up when history is shown could be wrong or impossible.
 - **The day is the day the run ended,** in local time, since that's what the streamer will look for.
 - **A line a crash cut short** is skipped when reading, and the next write starts on a new line, so the damage never spreads past that one record.
-- **Retention** deletes files older than the retention period, 30 days by default. It runs at startup and once a day after that.
+- **Retention** deletes files older than the retention period, 30 days by default, which the user can set from 1 to 365 days in Settings. It runs at startup and once a day after that, and straight away when the user changes the period, so a shorter one takes effect at once.
 - **No database.** Run history is written once and read newest first, a day at a time. Files do that with the standard library alone. SQLite would be another dependency, and its strengths, such as queries and updates, aren't needed here.
 
 ## Packages
@@ -238,6 +240,7 @@ Run history is stored in files, one per day, at `<user config folder>/whendo/run
 | `engine/step` | The step contract. |
 | `engine/automation` | The automation model, the file format, validation and which variables are available. |
 | `engine/runhistory` | Writing, reading and pruning run history files. |
+| `engine/appsettings` | The settings file, `<user config folder>/whendo/settings.json`, holding the user's choices from the Settings page. |
 | `engine/runner` | Receiving events, subscriptions, matching, queues and running steps. It implements `trigger.Receiver`. |
 | `engine/coresteps` | Wait, roll a random number and check a condition. |
 

@@ -6,6 +6,7 @@ export {
 } from "./models.js";
 
 export type {
+    RecordedValue,
     RunRecord,
     StepRecord
 } from "./models.js";

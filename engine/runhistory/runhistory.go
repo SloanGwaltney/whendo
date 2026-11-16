@@ -231,10 +231,11 @@ func (store *Store) Prune(retentionDays int, now time.Time) error {
 }
 
 // KeepPruned prunes right away and then once a day until ctx is cancelled.
-// A failed prune is logged and tried again the next day, since an old file
-// that lingers does no harm.
-func (store *Store) KeepPruned(ctx context.Context, retentionDays int) {
-	store.pruneAndLog(retentionDays)
+// retentionDays is asked each time, since the user can change it while
+// Whendo runs. A failed prune is logged and tried again the next day, since
+// an old file that lingers does no harm.
+func (store *Store) KeepPruned(ctx context.Context, retentionDays func() int) {
+	store.pruneAndLog(retentionDays())
 	ticker := time.NewTicker(pruneInterval)
 	defer ticker.Stop()
 	for {
@@ -242,7 +243,7 @@ func (store *Store) KeepPruned(ctx context.Context, retentionDays int) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			store.pruneAndLog(retentionDays)
+			store.pruneAndLog(retentionDays())
 		}
 	}
 }

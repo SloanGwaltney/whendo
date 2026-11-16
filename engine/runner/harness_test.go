@@ -37,6 +37,9 @@ const (
 	replierVariable  = "replier"
 	replyWord        = "reply"
 	badOutcomeType   = "test.badOutcome"
+	chooseStepName   = "Choose an outcome"
+	firstChoiceText  = "!a1"
+	chosenName       = "Chosen"
 
 	failureMessage = "the light bulb burned out"
 	waitTimeout    = 5 * time.Second
@@ -45,6 +48,9 @@ const (
 	quietPeriod = 50 * time.Millisecond
 	bufferSize  = runner.MaximumQueuedRuns * 2
 )
+
+// failingStepDetail is what the fail step says it tried before failing.
+var failingStepDetail = step.Detail{Name: "Bulb", Value: "the one in the hall"}
 
 type eventTrigger struct{}
 
@@ -174,14 +180,18 @@ func (testHarness *harness) steps() []step.Step {
 			},
 		},
 		fakeStep{
-			definition: step.Definition{ID: chooseStepType, Sentence: automationsetting.Sentence{automationsetting.Setting(outcomeSettingID)}, Settings: []automationsetting.Definition{
+			definition: step.Definition{ID: chooseStepType, DisplayName: chooseStepName, Sentence: automationsetting.Sentence{automationsetting.Setting(outcomeSettingID)}, Settings: []automationsetting.Definition{
 				{ID: outcomeSettingID, Kind: automationsetting.KindOption, IsRequired: true, Options: []automationsetting.Option{
 					{ID: firstOutcomeID}, {ID: secondOutcomeID},
 				}},
 			}},
 			outcomes: []step.Outcome{
-				{ID: firstOutcomeID, Variables: []trigger.VariableDefinition{{ID: chosenVariable}}},
-				{ID: secondOutcomeID},
+				{
+					ID:        firstOutcomeID,
+					Sentence:  automationsetting.Sentence{automationsetting.Words("If they type"), automationsetting.UserText(firstChoiceText)},
+					Variables: []trigger.VariableDefinition{{ID: chosenVariable, DisplayName: chosenName}},
+				},
+				{ID: secondOutcomeID, Sentence: automationsetting.Sentence{automationsetting.Words("Otherwise")}},
 			},
 			run: func(ctx context.Context, input step.Input) (step.Result, error) {
 				outcomeID, err := input.Settings.Option(outcomeSettingID)
@@ -195,7 +205,7 @@ func (testHarness *harness) steps() []step.Step {
 			definition: step.Definition{ID: failStepType},
 			outcomes:   singleOutcome,
 			run: func(ctx context.Context, input step.Input) (step.Result, error) {
-				return step.Result{}, errors.New(failureMessage)
+				return step.Result{Details: []step.Detail{failingStepDetail}}, errors.New(failureMessage)
 			},
 		},
 		fakeStep{

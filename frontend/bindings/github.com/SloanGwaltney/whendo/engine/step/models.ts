@@ -36,6 +36,17 @@ export interface Definition {
 }
 
 /**
+ * Detail is something a step did, such as the message it sent, shown in run
+ * history to explain a run. Unlike an outcome's variables, later steps can't
+ * use it, so a step can report what it did without offering the designer
+ * another value.
+ */
+export interface Detail {
+    "name": string;
+    "value": string;
+}
+
+/**
  * Outcome is one way a step can finish. Steps with more than one outcome
  * split the automation, and each outcome gets its own branch. Variables are
  * the values the step provides when it finishes this way, such as the reply

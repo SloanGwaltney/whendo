@@ -1,10 +1,12 @@
 package runner
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"maps"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/SloanGwaltney/whendo/engine/automation"
@@ -36,6 +38,7 @@ func (runner *Runner) execute(run pendingRun, automationAtStart automation.Autom
 			AutomationID:     automationAtStart.ID,
 			AutomationName:   automationAtStart.Name,
 			IsTest:           run.isTest,
+			TriggerID:        automationAtStart.Trigger.ID,
 			TriggerVariables: run.triggerVariables,
 			QueuedAt:         run.queuedAt,
 			StartedAt:        time.Now(),
@@ -122,11 +125,13 @@ func (execution *runExecution) executeStep(automationStep automation.Step) (bool
 	execution.record.Steps = append(execution.record.Steps, StepRecord{
 		StepID:    automationStep.ID,
 		StepType:  automationStep.Type,
+		StepName:  execution.stepName(automationStep.Type),
 		StartedAt: time.Now(),
 	})
-	outcome, err := execution.performStep(automationStep)
+	outcome, details, err := execution.performStep(automationStep)
 	stepRecord := &execution.record.Steps[stepIndex]
 	stepRecord.EndedAt = time.Now()
+	stepRecord.Details = details
 	if err != nil {
 		stepRecord.FailureReason = err.Error()
 		if errors.Is(err, errRunInterrupted) {
@@ -135,6 +140,8 @@ func (execution *runExecution) executeStep(automationStep automation.Step) (bool
 		return false, err
 	}
 	stepRecord.OutcomeID = outcome.ID
+	stepRecord.BranchLabel = branchLabel(outcome.Sentence)
+	stepRecord.Values = execution.providedValues(automationStep.ID, outcome)
 
 	branch, hasBranches := automationStep.Branches[outcome.ID]
 	if !hasBranches {
@@ -147,16 +154,48 @@ func (execution *runExecution) executeStep(automationStep automation.Step) (bool
 	return branch.AfterBranch == automation.AfterBranchContinue, nil
 }
 
+// stepName returns a step type's display name. A type Whendo doesn't have
+// fails when it runs, so its record falls back to the type's ID.
+func (execution *runExecution) stepName(stepType string) string {
+	definedStep, isKnown := execution.runner.catalog.Step(stepType)
+	if !isKnown {
+		return stepType
+	}
+	return definedStep.Definition().DisplayName
+}
+
+// providedValues returns the values a step's outcome provided, in the order
+// the outcome declares them.
+func (execution *runExecution) providedValues(stepID string, outcome step.Outcome) []RecordedValue {
+	var values []RecordedValue
+	for _, variable := range outcome.Variables {
+		reference := automationsetting.VariableReference{Source: automationsetting.VariableSourceStep, StepID: stepID, ID: variable.ID}
+		values = append(values, RecordedValue{ID: variable.ID, Name: variable.DisplayName, Value: execution.variables[reference]})
+	}
+	return values
+}
+
+// branchLabel writes an outcome's sentence as plain text. Outcome sentences
+// hold only fixed words and text the user wrote, never settings.
+func branchLabel(outcomeSentence automationsetting.Sentence) string {
+	var labelParts []string
+	for _, part := range outcomeSentence {
+		labelParts = append(labelParts, cmp.Or(part.Words, part.UserText))
+	}
+	return strings.Join(labelParts, " ")
+}
+
 // performStep runs one step and makes the variables its outcome provides
-// available to the steps after it.
-func (execution *runExecution) performStep(automationStep automation.Step) (step.Outcome, error) {
+// available to the steps after it. It returns the step's details even when
+// the step fails.
+func (execution *runExecution) performStep(automationStep automation.Step) (step.Outcome, []step.Detail, error) {
 	stepType, isKnown := execution.runner.catalog.Step(automationStep.Type)
 	if !isKnown {
-		return step.Outcome{}, fmt.Errorf("there's no step type %q", automationStep.Type)
+		return step.Outcome{}, nil, fmt.Errorf("there's no step type %q", automationStep.Type)
 	}
 	outcomes, err := stepType.Outcomes(automationStep.Settings)
 	if err != nil {
-		return step.Outcome{}, fmt.Errorf("working out the step's outcomes: %w", err)
+		return step.Outcome{}, nil, fmt.Errorf("working out the step's outcomes: %w", err)
 	}
 	result, err := stepType.Run(execution.runner.runContext, step.Input{
 		Settings:  automationStep.Settings,
@@ -164,14 +203,14 @@ func (execution *runExecution) performStep(automationStep automation.Step) (step
 		Events:    &execution.runner.subscriptions,
 	})
 	if execution.runner.runContext.Err() != nil {
-		return step.Outcome{}, errRunInterrupted
+		return step.Outcome{}, result.Details, errRunInterrupted
 	}
 	if err != nil {
-		return step.Outcome{}, err
+		return step.Outcome{}, result.Details, err
 	}
 	outcome, err := findOutcome(outcomes, result.OutcomeID)
 	if err != nil {
-		return step.Outcome{}, err
+		return step.Outcome{}, result.Details, err
 	}
 	// Only declared variables are kept, so a run provides exactly what
 	// validation promised. A declared variable the step didn't return is
@@ -180,7 +219,7 @@ func (execution *runExecution) performStep(automationStep automation.Step) (step
 		reference := automationsetting.VariableReference{Source: automationsetting.VariableSourceStep, StepID: automationStep.ID, ID: variable.ID}
 		execution.variables[reference] = result.Variables[variable.ID]
 	}
-	return outcome, nil
+	return outcome, result.Details, nil
 }
 
 func findOutcome(outcomes []step.Outcome, outcomeID string) (step.Outcome, error) {

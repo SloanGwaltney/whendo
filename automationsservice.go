@@ -86,6 +86,9 @@ type AutomationsService struct {
 	// currentStreamer gives the logged-in account, whose details test runs
 	// start with.
 	currentStreamer func() (trigger.Streamer, error)
+	// runHistoryRetentionDays gives how long run history is kept, which the
+	// user can change while Whendo runs.
+	runHistoryRetentionDays func() int
 
 	// mutex guards the maps. They hold every saved automation, including
 	// invalid ones the runner refused, so the UI can list them with their
@@ -96,16 +99,17 @@ type AutomationsService struct {
 	unreadableFileReasons map[string]string
 }
 
-func newAutomationsService(catalog *automation.Catalog, automationStore *automation.Store, runHistoryStore *runhistory.Store, currentStreamer func() (trigger.Streamer, error), logger *slog.Logger) *AutomationsService {
+func newAutomationsService(catalog *automation.Catalog, automationStore *automation.Store, runHistoryStore *runhistory.Store, runHistoryRetentionDays func() int, currentStreamer func() (trigger.Streamer, error), logger *slog.Logger) *AutomationsService {
 	service := &AutomationsService{
-		catalog:               catalog,
-		currentStreamer:       currentStreamer,
-		automationStore:       automationStore,
-		runHistoryStore:       runHistoryStore,
-		logger:                logger,
-		automationsByID:       make(map[string]automation.Automation),
-		problemsByID:          make(map[string]string),
-		unreadableFileReasons: make(map[string]string),
+		catalog:                 catalog,
+		currentStreamer:         currentStreamer,
+		runHistoryRetentionDays: runHistoryRetentionDays,
+		automationStore:         automationStore,
+		runHistoryStore:         runHistoryStore,
+		logger:                  logger,
+		automationsByID:         make(map[string]automation.Automation),
+		problemsByID:            make(map[string]string),
+		unreadableFileReasons:   make(map[string]string),
 	}
 	service.runner = runner.New(runner.Config{Catalog: catalog, OnRunEnded: service.recordRun, Logger: logger})
 	return service
@@ -128,7 +132,7 @@ func (service *AutomationsService) ServiceStartup(ctx context.Context, options a
 	}
 	service.mutex.Unlock()
 	// Wails cancels ctx right before shutdown, which stops pruning.
-	go service.runHistoryStore.KeepPruned(ctx, runhistory.DefaultRetentionDays)
+	go service.runHistoryStore.KeepPruned(ctx, service.runHistoryRetentionDays)
 	return nil
 }
 

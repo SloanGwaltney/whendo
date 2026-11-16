@@ -227,7 +227,7 @@ func TestStore_KeepPrunedPrunesRightAway(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	store.KeepPruned(ctx, runhistory.DefaultRetentionDays)
+	store.KeepPruned(ctx, func() int { return runhistory.DefaultRetentionDays })
 
 	if days, err := store.Days(); err != nil || len(days) != 0 {
 		t.Errorf("got days %v, error %v; want the old day pruned", days, err)

@@ -5,6 +5,7 @@
   import Dialog from "./Dialog.svelte";
   import HomePage from "./HomePage.svelte";
   import PlaceholderPage from "./PlaceholderPage.svelte";
+  import RunHistoryPage from "./RunHistoryPage.svelte";
   import SettingsPage from "./SettingsPage.svelte";
   import Sidebar from "./Sidebar.svelte";
 
@@ -49,7 +50,7 @@
     {:else if currentPageId === "redeems"}
       <PlaceholderPage title="Redeems" futureContents="Your channel point redeems will be here."/>
     {:else if currentPageId === "runHistory"}
-      <PlaceholderPage title="Run History" futureContents="Every time an automation runs will be listed here."/>
+      <RunHistoryPage/>
     {:else}
       <SettingsPage {accountLogin}/>
     {/if}

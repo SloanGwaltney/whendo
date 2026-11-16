@@ -54,6 +54,7 @@ const (
 	dataFolderName        = "whendo"
 	automationsFolderName = "automations"
 	runHistoryFolderName  = "run-history"
+	settingsFileName      = "settings.json"
 )
 
 // dataFolder returns the folder Whendo keeps its files in.

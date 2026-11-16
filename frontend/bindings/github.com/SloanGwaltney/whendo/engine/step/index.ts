@@ -3,5 +3,6 @@
 
 export type {
     Definition,
+    Detail,
     Outcome
 } from "./models.js";

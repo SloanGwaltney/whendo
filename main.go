@@ -10,6 +10,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"github.com/SloanGwaltney/whendo/engine/appsettings"
 	"github.com/SloanGwaltney/whendo/engine/automation"
 	"github.com/SloanGwaltney/whendo/engine/coresteps"
 	"github.com/SloanGwaltney/whendo/engine/credentials"
@@ -53,7 +54,15 @@ func main() {
 	twitchSession.AddStateListener(func(state twitchauth.LoginState) {
 		app.Event.Emit(twitchLoginStateChangedEvent, state)
 	})
-	automationsService, err := newAutomationsServiceForApp(twitchSession, twitchHTTPClient)
+	folder, err := dataFolder()
+	if err != nil {
+		log.Fatal(err)
+	}
+	runHistoryStore := runhistory.NewStore(filepath.Join(folder, runHistoryFolderName), slog.Default())
+	// Settings are read before any service starts, so the first prune
+	// already keeps run history for as long as the user chose.
+	settingsService := newSettingsService(appsettings.NewStore(filepath.Join(folder, settingsFileName)), runHistoryStore, slog.Default())
+	automationsService, err := newAutomationsServiceForApp(folder, runHistoryStore, settingsService.runHistoryRetentionDays, twitchSession, twitchHTTPClient)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -83,6 +92,7 @@ func main() {
 			// first events after startup aren't missed.
 			application.NewService(automationsService),
 			application.NewService(&TwitchEventsService{listener: twitchListener}),
+			application.NewService(settingsService),
 		},
 		// Two copies would each run every automation and use up Twitch's
 		// connection limit, so a second launch brings the first forward.
@@ -130,8 +140,6 @@ func main() {
 	}
 }
 
-// newAutomationsServiceForApp builds the automation engine with every
-// trigger and step Whendo offers, storing its files in Whendo's data folder.
 // newAppCatalog returns every trigger and step Whendo offers.
 func newAppCatalog(twitchStepsConfig twitchsteps.Config) (*automation.Catalog, error) {
 	steps := append(coresteps.Steps(), twitchsteps.Steps(twitchStepsConfig)...)
@@ -142,11 +150,10 @@ func newAppCatalog(twitchStepsConfig twitchsteps.Config) (*automation.Catalog, e
 	return catalog, nil
 }
 
-func newAutomationsServiceForApp(twitchSession *twitchauth.Session, twitchHTTPClient *http.Client) (*AutomationsService, error) {
-	folder, err := dataFolder()
-	if err != nil {
-		return nil, err
-	}
+// newAutomationsServiceForApp builds the automation engine with every
+// trigger and step Whendo offers, storing automations in Whendo's data
+// folder.
+func newAutomationsServiceForApp(folder string, runHistoryStore *runhistory.Store, runHistoryRetentionDays func() int, twitchSession *twitchauth.Session, twitchHTTPClient *http.Client) (*AutomationsService, error) {
 	catalog, err := newAppCatalog(twitchsteps.Config{
 		ClientID:   twitchClientID(),
 		Account:    twitchSession,
@@ -158,7 +165,8 @@ func newAutomationsServiceForApp(twitchSession *twitchauth.Session, twitchHTTPCl
 	return newAutomationsService(
 		catalog,
 		automation.NewStore(filepath.Join(folder, automationsFolderName)),
-		runhistory.NewStore(filepath.Join(folder, runHistoryFolderName), slog.Default()),
+		runHistoryStore,
+		runHistoryRetentionDays,
 		func() (trigger.Streamer, error) { return streamerFromSession(twitchSession) },
 		slog.Default(),
 	), nil

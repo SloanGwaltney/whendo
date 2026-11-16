@@ -2,6 +2,7 @@ package runner_test
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -95,7 +96,7 @@ func TestReceiveEvent_RecordsRunAsFailedWhenQueueIsFull(t *testing.T) {
 	testHarness.sendEvent("hello", "one too many")
 
 	record := testHarness.awaitRecord()
-	if record.Status != runner.RunStatusFailed || record.TriggerVariables[senderVariable] != "one too many" || !record.StartedAt.IsZero() {
+	if record.Status != runner.RunStatusFailed || record.TriggerVariables[senderVariable] != "one too many" || !record.StartedAt.IsZero() || record.TriggerID != eventTriggerID {
 		t.Errorf("got record %+v, want the extra run failed without starting", record)
 	}
 }
@@ -225,6 +226,55 @@ func TestRun_FollowsBranchAndContinuesAfterSplit(t *testing.T) {
 	}
 }
 
+func TestRun_RecordsStepNamesAndTheBranchTakenAsText(t *testing.T) {
+	testHarness := newHarness(t)
+	testHarness.addAutomation(testHarness.newAutomation("labelled", "hello",
+		testHarness.chooseStep("choose", firstOutcomeID,
+			branch(automation.AfterBranchContinue),
+			branch(automation.AfterBranchContinue),
+		),
+		testHarness.sayStep("after", "after the split"),
+	))
+
+	testHarness.sendEvent("hello", "Cooler_User")
+
+	testHarness.awaitSaid()
+	record := testHarness.awaitRecord()
+	if record.TriggerID != eventTriggerID {
+		t.Errorf("got trigger ID %q, want %q", record.TriggerID, eventTriggerID)
+	}
+	choiceRecord := record.Steps[0]
+	if choiceRecord.StepName != chooseStepName || choiceRecord.BranchLabel != "If they type "+firstChoiceText {
+		t.Errorf("got step name %q and branch label %q", choiceRecord.StepName, choiceRecord.BranchLabel)
+	}
+	if record.Steps[1].BranchLabel != "" {
+		t.Errorf("got branch label %q for a step that doesn't split, want none", record.Steps[1].BranchLabel)
+	}
+}
+
+func TestRun_RecordsTheValuesEachStepProvided(t *testing.T) {
+	testHarness := newHarness(t)
+	testHarness.addAutomation(testHarness.newAutomation("providing", "hello",
+		testHarness.chooseStep("choose", firstOutcomeID,
+			branch(automation.AfterBranchContinue),
+			branch(automation.AfterBranchContinue),
+		),
+		testHarness.sayStep("after", "after the split"),
+	))
+
+	testHarness.sendEvent("hello", "Cooler_User")
+
+	testHarness.awaitSaid()
+	record := testHarness.awaitRecord()
+	wantValues := []runner.RecordedValue{{ID: chosenVariable, Name: chosenName, Value: "chosen-" + firstOutcomeID}}
+	if !slices.Equal(record.Steps[0].Values, wantValues) {
+		t.Errorf("got values %+v, want %+v", record.Steps[0].Values, wantValues)
+	}
+	if len(record.Steps[1].Values) != 0 {
+		t.Errorf("got values %+v for a step that provides none", record.Steps[1].Values)
+	}
+}
+
 func TestRun_BranchThatEndsSkipsStepsAfterSplit(t *testing.T) {
 	testHarness := newHarness(t)
 	testHarness.addAutomation(testHarness.newAutomation("ending", "hello",
@@ -265,6 +315,18 @@ func TestRun_FailingStepEndsRunAndRecordsWhichStep(t *testing.T) {
 	}
 	testHarness.awaitSaid()
 	assertNothingArrives(t, testHarness.said, "say step after a failure")
+}
+
+func TestRun_RecordsDetailsOfAStepThatFailed(t *testing.T) {
+	testHarness := newHarness(t)
+	testHarness.addAutomation(testHarness.newAutomation("failing", "hello", simpleStep("broken", failStepType)))
+
+	testHarness.sendEvent("hello", "Cooler_User")
+
+	record := testHarness.awaitRecord()
+	if len(record.Steps) != 1 || !slices.Equal(record.Steps[0].Details, []step.Detail{failingStepDetail}) {
+		t.Errorf("got steps %+v, want the failed step's details kept", record.Steps)
+	}
 }
 
 func TestRun_PanickingStepFailsRunAndRunnerKeepsWorking(t *testing.T) {

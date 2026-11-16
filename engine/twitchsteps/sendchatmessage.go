@@ -24,6 +24,8 @@ const (
 	MaximumChatMessageLength = 500
 
 	chatMessagesPath = "/chat/messages"
+	// messageDetailName labels the message in run history.
+	messageDetailName = "Message"
 )
 
 type sendChatMessageStep struct {
@@ -66,15 +68,26 @@ func (sendChatMessageStep) Outcomes(automationsetting.Values) ([]step.Outcome, e
 // Run posts the message in the streamer's chat as the streamer. A message
 // Twitch would refuse, such as one too long after variables are inserted,
 // fails the step with the reason rather than being cut short, since a
-// truncated message could say something the streamer never meant.
+// truncated message could say something the streamer never meant. Once the
+// message is filled in, it's in the result's details even if sending fails,
+// so run history shows what Whendo tried to say.
 func (chatStep sendChatMessageStep) Run(ctx context.Context, input step.Input) (step.Result, error) {
 	message, err := renderMessage(input)
 	if err != nil {
 		return step.Result{}, err
 	}
+	result := step.Result{
+		OutcomeID: step.DefaultOutcomeID,
+		Details:   []step.Detail{{Name: messageDetailName, Value: message}},
+	}
+	failedResult := step.Result{Details: result.Details}
+	err = checkMessage(message)
+	if err != nil {
+		return failedResult, err
+	}
 	broadcasterUserID, err := chatStep.helix.broadcasterUserID()
 	if err != nil {
-		return step.Result{}, err
+		return failedResult, err
 	}
 	response, err := chatStep.helix.postJSON(ctx, chatMessagesPath, sendChatMessageRequest{
 		BroadcasterID: broadcasterUserID,
@@ -82,13 +95,13 @@ func (chatStep sendChatMessageStep) Run(ctx context.Context, input step.Input) (
 		Message:       message,
 	})
 	if err != nil {
-		return step.Result{}, err
+		return failedResult, err
 	}
 	err = checkSendResponse(response)
 	if err != nil {
-		return step.Result{}, err
+		return failedResult, err
 	}
-	return step.Result{OutcomeID: step.DefaultOutcomeID}, nil
+	return result, nil
 }
 
 func renderMessage(input step.Input) (string, error) {
@@ -100,14 +113,19 @@ func renderMessage(input step.Input) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("filling in the message: %w", err)
 	}
+	return message, nil
+}
+
+// checkMessage refuses messages Twitch would, before asking it.
+func checkMessage(message string) error {
 	if strings.TrimSpace(message) == "" {
-		return "", errors.New("the message is empty, so there's nothing to send")
+		return errors.New("the message is empty, so there's nothing to send")
 	}
 	messageLength := utf8.RuneCountInString(message)
 	if messageLength > MaximumChatMessageLength {
-		return "", fmt.Errorf("the message is %d characters long, and Twitch allows at most %d", messageLength, MaximumChatMessageLength)
+		return fmt.Errorf("the message is %d characters long, and Twitch allows at most %d", messageLength, MaximumChatMessageLength)
 	}
-	return message, nil
+	return nil
 }
 
 // checkSendResponse turns Twitch's answer into a failure the streamer can

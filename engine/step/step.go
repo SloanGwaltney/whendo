@@ -61,6 +61,19 @@ type Input struct {
 type Result struct {
 	OutcomeID string
 	Variables map[string]string
+	// Details say what the step did, for run history. They're kept even when
+	// Run returns an error, so a failure can show what the step tried, such
+	// as the message Twitch refused.
+	Details []Detail
+}
+
+// Detail is something a step did, such as the message it sent, shown in run
+// history to explain a run. Unlike an outcome's variables, later steps can't
+// use it, so a step can report what it did without offering the designer
+// another value.
+type Detail struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // Step is a step the engine can run.
