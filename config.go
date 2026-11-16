@@ -25,6 +25,15 @@ const twitchRequestTimeout = 30 * time.Second
 // build/config.yml.
 const singleInstanceID = "io.github.sloangwaltney.whendo"
 
+// The main window's title and sizes, in pixels.
+const (
+	windowTitle         = "Whendo"
+	defaultWindowWidth  = 1280
+	defaultWindowHeight = 800
+	minimumWindowWidth  = 1024
+	minimumWindowHeight = 640
+)
+
 // credentialServiceName groups Whendo's secrets in the operating system's
 // credential manager.
 const credentialServiceName = "Whendo"

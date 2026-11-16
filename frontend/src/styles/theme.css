@@ -1,0 +1,72 @@
+/*
+  Whendo's colour themes. Components never use a literal colour: every colour
+  is one of these variables, so a theme is just another set of values. The
+  default theme is on :root; other themes are applied by setting data-theme on
+  the <html> element. See docs/design/mvp-ui.md#look-and-feel.
+*/
+
+:root {
+  color-scheme: dark;
+
+  --color-background: #14151c;
+  --color-sidebar: #101117;
+  --color-surface: #1b1d27;
+  --color-surface-raised: #232633;
+  --color-border: #2a2e3d;
+  --color-border-strong: #3a3f53;
+
+  --color-text: #e8e9f1;
+  --color-text-muted: #9a9fb6;
+  --color-text-faint: #676c84;
+
+  /* "When": the trigger. */
+  --color-trigger: #5cc8c1;
+  --color-trigger-soft: rgba(92, 200, 193, 0.12);
+  --color-trigger-border: rgba(92, 200, 193, 0.35);
+
+  /* "Do": steps, editable values and the main buttons. */
+  --color-accent: #9ba7ff;
+  --color-accent-soft: rgba(155, 167, 255, 0.11);
+  --color-accent-hover: rgba(155, 167, 255, 0.2);
+  --color-accent-line: rgba(155, 167, 255, 0.5);
+  --color-on-accent: #10121c;
+
+  /* Values inserted into sentences, such as the redeemer's name. */
+  --color-value: #f1b35e;
+  --color-value-soft: rgba(241, 179, 94, 0.15);
+
+  --color-success: #55cf8e;
+  --color-warning: #eec150;
+  --color-warning-soft: rgba(238, 193, 80, 0.1);
+  --color-danger: #ff7d7d;
+  --color-danger-soft: rgba(255, 125, 125, 0.1);
+
+  --color-shadow: rgba(0, 0, 0, 0.5);
+}
+
+/*
+  Violet, asked for by our first user. It's our own purple, not Twitch's brand
+  colour, so Whendo never looks like an official Twitch product.
+*/
+:root[data-theme="violet"] {
+  --color-background: #0f0915;
+  --color-sidebar: #0a0610;
+  --color-surface: #160e1f;
+  --color-surface-raised: #1e1429;
+  --color-border: #281c38;
+  --color-border-strong: #3a2a51;
+
+  --color-text: #efe8f8;
+  --color-text-muted: #a796c0;
+  --color-text-faint: #72628b;
+
+  --color-trigger: #6fd6c8;
+  --color-trigger-soft: rgba(111, 214, 200, 0.11);
+  --color-trigger-border: rgba(111, 214, 200, 0.35);
+
+  --color-accent: #c9adff;
+  --color-accent-soft: rgba(201, 173, 255, 0.12);
+  --color-accent-hover: rgba(201, 173, 255, 0.22);
+  --color-accent-line: rgba(201, 173, 255, 0.5);
+  --color-on-accent: #150d1f;
+}

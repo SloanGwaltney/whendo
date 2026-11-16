@@ -4,11 +4,11 @@
   import {TwitchLoginService} from "../bindings/github.com/SloanGwaltney/whendo";
   import {LoginStatus} from "../bindings/github.com/SloanGwaltney/whendo/engine/twitchauth";
   import type {LoginState} from "../bindings/github.com/SloanGwaltney/whendo/engine/twitchauth";
-  import TwitchConnectionStatus from "./TwitchConnectionStatus.svelte";
+  import AppShell from "./AppShell.svelte";
   import TwitchLogin from "./TwitchLogin.svelte";
+  import Wordmark from "./Wordmark.svelte";
 
   let loginState: LoginState | null = $state(null);
-  let logoutErrorMessage = $state("");
 
   $effect(() => {
     // Subscribe before asking for the current state, so a change that
@@ -23,29 +23,29 @@
       .catch((error: unknown) => console.error("Couldn't load the Twitch login state", error));
     return unsubscribe;
   });
-
-  async function logOut(): Promise<void> {
-    logoutErrorMessage = "";
-    try {
-      await TwitchLoginService.Logout();
-    } catch (error) {
-      logoutErrorMessage = String(error);
-    }
-  }
 </script>
 
-<main class="container">
-  {#if loginState === null}
-    <p class="subtitle">Loading…</p>
-  {:else if loginState.status === LoginStatus.LoginStatusLoggedIn}
-    <!-- Placeholder until the Home and Settings screens exist. -->
-    <h1 class="title">Logged in as {loginState.accountLogin}</h1>
-    <TwitchConnectionStatus/>
-    <button class="btn" onclick={logOut}>Log out</button>
-    {#if logoutErrorMessage}
-      <p class="subtitle">Logged out, but something went wrong: {logoutErrorMessage}</p>
-    {/if}
-  {:else}
+{#if loginState === null}
+  <!-- Loading takes a moment at most, so there's nothing to show. -->
+{:else if loginState.status === LoginStatus.LoginStatusLoggedIn}
+  <AppShell accountLogin={loginState.accountLogin}/>
+{:else}
+  <!-- Until the user logs in, there's nothing else Whendo can do. See
+       docs/design/mvp-ui.md#first-launch. -->
+  <div class="first-launch">
+    <Wordmark/>
     <TwitchLogin {loginState}/>
-  {/if}
-</main>
+  </div>
+{/if}
+
+<style>
+  .first-launch {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-6);
+    padding: var(--space-6);
+  }
+</style>

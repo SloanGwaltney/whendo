@@ -55,30 +55,30 @@
 </script>
 
 <section class="twitch-login">
-  <h1 class="title">Connect Twitch</h1>
+  <h1>Connect Twitch</h1>
 
   {#if isWaitingForApproval}
-    <p class="subtitle">Approve Whendo on the Twitch page that opened in your browser. Twitch will show this code:</p>
-    <p class="user-code">{loginState.userCode}</p>
-    <p class="subtitle">Make sure it matches, then click <strong>Activate</strong> and <strong>Authorize</strong>.</p>
+    <p class="explanation">Approve Whendo on the Twitch page that opened in your browser. Twitch will show this code:</p>
+    <p class="user-code is-selectable">{loginState.userCode}</p>
+    <p class="explanation">Make sure it matches, then click <strong>Activate</strong> and <strong>Authorize</strong>.</p>
     <div class="actions">
-      <button class="btn" onclick={openTwitchAgain}>Open Twitch again</button>
-      <button class="btn secondary" onclick={cancelLogin}>Cancel</button>
+      <button type="button" class="button is-primary" onclick={openTwitchAgain}>Open Twitch again</button>
+      <button type="button" class="button" onclick={cancelLogin}>Cancel</button>
     </div>
   {:else}
-    <p class="subtitle">{logoutExplanation}</p>
+    <p class="explanation">{logoutExplanation}</p>
     {#if loginState.loginErrorMessage}
-      <p class="details">Details: {loginState.loginErrorMessage}</p>
+      <p class="details is-selectable">Details: {loginState.loginErrorMessage}</p>
     {/if}
     <div class="actions">
-      <button class="btn" onclick={startLogin} disabled={isStarting}>
+      <button type="button" class="button is-primary" onclick={startLogin} disabled={isStarting}>
         {isStarting ? "Contacting Twitch…" : "Log in with Twitch"}
       </button>
     </div>
   {/if}
 
   {#if actionErrorMessage}
-    <p class="details" role="alert">{actionErrorMessage}</p>
+    <p class="details is-selectable" role="alert">{actionErrorMessage}</p>
   {/if}
 </section>
 
@@ -87,45 +87,41 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--s-2);
+    gap: var(--space-4);
     max-width: 36rem;
     text-align: center;
   }
 
+  h1 {
+    font-size: var(--font-size-title);
+  }
+
+  .explanation {
+    color: var(--color-text-muted);
+    font-size: 15px;
+  }
+
   .user-code {
-    margin: 0;
-    padding: var(--s-1) var(--s-3);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius);
-    background: var(--glass-strong);
+    padding: var(--space-2) var(--space-5);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-large);
+    background: var(--color-surface-raised);
     font-size: 2rem;
     font-weight: 700;
     letter-spacing: 0.15em;
-    -webkit-user-select: text;
-    user-select: text;
   }
 
   .actions {
     display: flex;
-    gap: var(--s-1);
-    --wails-draggable: no-drag;
+    gap: var(--space-2);
   }
 
-  .btn:disabled {
-    opacity: 0.6;
+  .button:disabled {
     cursor: progress;
   }
 
-  .secondary {
-    background: var(--glass-strong);
-    border: 1px solid var(--glass-border);
-  }
-
   .details {
-    margin: 0;
-    color: var(--muted);
-    font-size: 0.85rem;
-    -webkit-user-select: text;
-    user-select: text;
+    color: var(--color-text-muted);
+    font-size: 13px;
   }
 </style>

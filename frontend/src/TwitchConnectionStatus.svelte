@@ -5,7 +5,9 @@
   import {ConnectionStatus} from "../bindings/github.com/SloanGwaltney/whendo/engine/twitcheventsub";
   import type {ConnectionState} from "../bindings/github.com/SloanGwaltney/whendo/engine/twitcheventsub";
 
-  let connectionState: ConnectionState | null = $state(null);
+  let {accountLogin}: {accountLogin: string} = $props();
+
+  let connectionState = $state<ConnectionState | null>(null);
 
   $effect(() => {
     // Subscribe before asking for the current state, so a change that
@@ -21,40 +23,69 @@
     return unsubscribe;
   });
 
+  const isConnected = $derived(connectionState?.status === ConnectionStatus.ConnectionStatusConnected);
+
   const statusText = $derived.by(() => {
     switch (connectionState?.status) {
       case ConnectionStatus.ConnectionStatusConnected:
-        return "Twitch: connected";
+        return `Connected as ${accountLogin}`;
       case ConnectionStatus.ConnectionStatusProblem:
-        return "Twitch: some events can't be received";
+        return "Some events can't be received";
       default:
-        return "Twitch: reconnecting…";
+        return "Reconnecting…";
     }
   });
 
-  const problems = $derived.by(() => connectionState?.problems ?? []);
+  const problems = $derived(connectionState?.problems ?? []);
 </script>
 
 <div class="connection-status" role="status">
+  <span class="dot" class:is-connected={isConnected}></span>
+  <span class="name">Twitch</span>
   {#if problems.length > 0}
-    <details>
+    <details class="detail">
       <summary>{statusText}</summary>
-      <ul>
+      <ul class="is-selectable">
         {#each problems as problem (problem)}
           <li>{problem}</li>
         {/each}
       </ul>
     </details>
   {:else}
-    <span>{statusText}</span>
+    <span class="detail">{statusText}</span>
   {/if}
 </div>
 
 <style>
   .connection-status {
-    color: var(--muted);
-    font-size: 0.9rem;
-    --wails-draggable: no-drag;
+    display: grid;
+    grid-template-columns: 10px 1fr;
+    gap: 2px var(--space-3);
+    align-items: center;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-warning);
+  }
+
+  .dot.is-connected {
+    background: var(--color-success);
+  }
+
+  .name {
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .detail {
+    grid-column: 2;
+    min-width: 0;
+    font-size: var(--font-size-small);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
   }
 
   summary {
@@ -62,10 +93,7 @@
   }
 
   ul {
-    margin: var(--s-1) 0 0;
-    padding-left: var(--s-2);
-    text-align: left;
-    -webkit-user-select: text;
-    user-select: text;
+    margin: var(--space-1) 0 0;
+    padding-left: var(--space-4);
   }
 </style>

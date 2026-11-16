@@ -101,6 +101,10 @@ export enum ProblemSubject {
      */
     $zero = "",
 
+    /**
+     * Problems are about the automation as a whole, such as its name, about its
+     * trigger, or about one of its steps.
+     */
     ProblemSubjectAutomation = "automation",
     ProblemSubjectTrigger = "trigger",
     ProblemSubjectStep = "step",
