@@ -1,7 +1,7 @@
 # Automation Engine
 
 - **Status:** Draft
-- **Last updated:** 2026-11-15
+- **Last updated:** 2026-11-16
 
 How the engine turns trigger events into runs: matching events to automations, the contracts for triggers and steps, variables, queuing, how automations are saved and how run history is kept. This is plain Go with no dependency on Wails. For the user-facing model this implements, see [MVP UI Design](mvp-ui.md#automation-model). For where Twitch events come from, see [Twitch EventSub](twitch-eventsub.md).
 
@@ -180,7 +180,7 @@ Each automation is one JSON file at `<user config folder>/whendo/automations/<au
 ### Invalid Automations
 An automation is invalid when its file can't be read, it refers to a trigger, step or variable that doesn't exist, or a required setting is missing. Whendo never runs an invalid automation. It still lists it with the reason, so the user can fix or delete it rather than have it silently disappear.
 
-Saving checks the same rules, so the designer can't save an invalid automation.
+Saving checks the same rules, but still saves an invalid automation, so unfinished work in the designer is never lost. An invalid automation is always saved turned off, and turning it on is refused until it's valid. Saving an invalid version of an automation that's on turns it off. See [Problems](mvp-ui.md#problems).
 
 ## Run History
 

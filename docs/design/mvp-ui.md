@@ -1,7 +1,7 @@
 # MVP UI Design
 
 - **Status:** Draft
-- **Last updated:** 2026-11-15
+- **Last updated:** 2026-11-16
 
 This document describes the screens and automation model for Whendo's MVP. For why we chose this stack, see the ADRs in [docs/adr](../adr). For the redeems the MVP must support, see [MVP User Redeems](mvp-user-redeems.md).
 
@@ -29,7 +29,33 @@ Once the user is logged in:
 - **In both cases:** never create a redeem on the user's behalf without asking.
 
 ### Automation Designer
-See [Automation Model](#automation-model) below. The user picks a trigger, then adds steps. Each step reads as part of a sentence.
+The designer shows an automation as sentences: **When** the trigger happens, **do** a list of steps. For what the sentences describe, see [Automation Model](#automation-model) below. A clickable prototype of this design was well received by our first user.
+
+- **Trigger:** shown at the top in its own card, with the values it provides listed underneath. The common values show first and the rest sit behind a "more" link.
+- **Editing values:** every setting is a highlighted value inside its sentence. Clicking a value opens a small popover under it for editing. A popover keeps the sentence in view, so editing feels like finishing a sentence rather than filling in a form. Message editors get wider on larger screens. Whendo assumes at least an HD monitor and accepts some crowding below that, and the window has a minimum size of 1024×640.
+- **Messages:** text with values inserted at the cursor. Each value shows as a pill that's deleted like a single character. Chat messages show their length against Twitch's 500-character limit.
+- **Adding steps:** "Add a step" at the end of every list, plus an insert point between steps. Both open a searchable picker that groups steps by what they act on, such as Chat, OBS or Sound.
+- **Moving steps:** Move up and Move down in each step's menu, within its own list. Steps can't be moved into or out of a path. We'll add more only if streamers show a need these don't meet.
+- **Paths:** each outcome of a step that splits has its own indented path, labelled as a sentence, such as "If they type `!a1`." Each path ends with "stop here" or "carry on below," and new paths carry on below. A path with no steps takes one line. Paths are never merged, so every outcome keeps its own place to add steps.
+- **Numbering:** only top-level steps are numbered. Numbers across paths would suggest an order between steps that never both run.
+- **Read it back:** a toggle shows the whole automation as plain text, for reviewing it before going live.
+- **Saving:** there's an explicit Save button. A saved edit applies to the next run straight away, so saving automatically could make a half-finished automation fire during a stream.
+
+#### Problems
+The designer lists problems above the steps and marks each step that has one. Clicking a problem jumps to its step.
+
+- **Must fix:** problems with the automation itself, for example:
+  - a required value is missing
+  - a step uses a value that isn't available on every path that reaches it
+  - a chat message is over Twitch's limit
+  - a step that acts on a redemption is used without a redeem trigger
+  - a list of choices has a blank or repeated choice
+- **Good to know:** problems that don't mean the automation is wrong, for example:
+  - OBS isn't connected
+  - the redeem wasn't created by Whendo, so refunding or fulfilling it will fail
+  - steps can never run because every path above them stops
+- **Problems outside Whendo are never must-fix.** Twitch or OBS being down never makes an automation broken. In particular, a redeem trigger is marked as using a missing redeem only when Twitch confirms that the redeem is gone, not when the list of redeems can't be loaded.
+- **Broken automations can be saved,** so unfinished work is never lost. A broken automation is always saved turned off, and it can't be turned on or test run until its must-fix problems are fixed. Saving a broken edit to an automation that's on turns it off and tells the user so. Home marks broken automations as needing fixing.
 
 ### Redeems
 Lists the user's Twitch channel point redeems. For accounts that aren't monetized, the page is empty and explains why.
@@ -53,6 +79,13 @@ A table with one row for every time any automation is triggered. Each row shows 
 - **OBS:** the WebSocket address and password, plus connection status.
 - **Audio:** the output device used for sound playback.
 - **Run history:** the retention period in days.
+- **Theme:** the colour theme; see [Look and Feel](#look-and-feel).
+
+## Look and Feel
+- **Hand-written CSS, no component library.** The trickiest parts, the value popover and the message editor with value pills, aren't something component libraries cover well. Libraries also bring their own theming systems, which would fight ours. Avoiding one also follows the dependency policy in [AGENTS.md](../../AGENTS.md#dependencies).
+- **Every colour is a theme variable.** Components never use a literal colour. A theme is one set of values for those variables, applied by an attribute on the page, so switching themes is instant and adding one is just another set of values.
+- **Themes are presets.** Users pick a whole theme rather than individual colours, because each preset is checked for readability once. Separate colour choices could make text unreadable, and the problem, value and status colours would have to stay readable on any background.
+- **The MVP ships two themes:** a neutral dark default and a violet theme, which our first user asked for. The violet is our own, not Twitch's brand purple, so Whendo never looks like an official Twitch product. More presets, or a choice of accent colour, can come later.
 
 ## Automation Model
 
