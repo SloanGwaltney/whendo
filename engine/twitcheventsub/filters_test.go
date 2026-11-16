@@ -223,3 +223,36 @@ func TestFilters_IgnoreEventsForOtherTriggers(t *testing.T) {
 		}
 	}
 }
+
+func TestRedeemTrigger_NotesThePlaceholderRedeem(t *testing.T) {
+	noter, canNote := findTrigger(t, twitcheventsub.RedeemTriggerID).(trigger.SettingsNoter)
+	if !canNote {
+		t.Fatal("the redeem trigger doesn't note its settings")
+	}
+
+	notes := noter.NoteSettings(textSettings(t, twitcheventsub.RewardSetting, twitcheventsub.PlaceholderRewardID))
+
+	if len(notes) != 1 || notes[0].SettingID != twitcheventsub.RewardSetting || notes[0].Message == "" {
+		t.Errorf("got notes %+v, want one about the reward", notes)
+	}
+}
+
+func TestRedeemTrigger_HasNothingToNoteAboutARealRedeem(t *testing.T) {
+	noter := findTrigger(t, twitcheventsub.RedeemTriggerID).(trigger.SettingsNoter)
+
+	notes := noter.NoteSettings(textSettings(t, twitcheventsub.RewardSetting, automationRewardID))
+
+	if len(notes) != 0 {
+		t.Errorf("got notes %+v, want none", notes)
+	}
+}
+
+func TestRedeemFilter_RealRedemptionsNeverMatchThePlaceholder(t *testing.T) {
+	redeemTrigger := findTrigger(t, twitcheventsub.RedeemTriggerID)
+
+	_, isMatch, err := redeemTrigger.Filter(redeemEvent(automationRewardID), textSettings(t, twitcheventsub.RewardSetting, twitcheventsub.PlaceholderRewardID))
+
+	if err != nil || isMatch {
+		t.Errorf("got match %v and error %v, want no match", isMatch, err)
+	}
+}

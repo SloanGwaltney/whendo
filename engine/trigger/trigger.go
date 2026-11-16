@@ -70,6 +70,23 @@ type MismatchExplainer interface {
 	ExplainMismatch(variables map[string]string, settings automationsetting.Values) string
 }
 
+// SettingsNoter is a trigger that has something the streamer should know
+// about its settings, even though the automation is fine, such as a
+// placeholder redeem that only runs when tested. Notes are never must-fix:
+// rules that make settings invalid belong in the setting definitions.
+type SettingsNoter interface {
+	NoteSettings(settings automationsetting.Values) []SettingsNote
+}
+
+// SettingsNote is one thing worth knowing about a trigger's settings,
+// written for the streamer.
+type SettingsNote struct {
+	// SettingID is the setting the note is about, or empty when it's about
+	// the trigger as a whole.
+	SettingID string
+	Message   string
+}
+
 // Streamer is the account an automation runs for, whose details a test
 // run's starting values use.
 type Streamer struct {

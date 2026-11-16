@@ -71,8 +71,8 @@ export function useDesignerActions(): DesignerActions | undefined {
 // step uses them.
 const editableKinds = new Set<string>([Kind.KindText, Kind.KindTemplate, Kind.KindWholeNumber, Kind.KindDuration, Kind.KindOption, Kind.KindVariable]);
 
-// isEditableKind is also true for kinds an integration adds, such as a
-// reward, which are edited as text until they have their own pickers.
+// isEditableKind is also true for kinds an integration adds. A reward has
+// its own picker; any other is edited as text until it has one.
 export function isEditableKind(kind: string): boolean {
   const isEngineKind = (Object.values(Kind) as string[]).includes(kind);
   return editableKinds.has(kind) || !isEngineKind;

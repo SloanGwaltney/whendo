@@ -36,6 +36,12 @@ const (
 	replyVariable        = "reply"
 
 	testAutomationID = "test-automation"
+
+	// notingTriggerID is a trigger that notes when its reward is a
+	// placeholder, like the Twitch redeem trigger.
+	notingTriggerID    = "test.notingRedeem"
+	placeholderReward  = "placeholder"
+	placeholderMessage = "This only runs when you test it."
 )
 
 type fakeTrigger struct {
@@ -52,6 +58,20 @@ func (fake fakeTrigger) Filter(event trigger.Event, settings automationsetting.V
 
 func (fake fakeTrigger) TestValues(settings automationsetting.Values, streamer trigger.Streamer) map[string]string {
 	return map[string]string{}
+}
+
+// notingTrigger notes a placeholder reward, so tests can check how the
+// check reports a trigger's notes.
+type notingTrigger struct {
+	fakeTrigger
+}
+
+func (noting notingTrigger) NoteSettings(settings automationsetting.Values) []trigger.SettingsNote {
+	reward, err := settings.Text(rewardSettingID)
+	if err != nil || reward != placeholderReward {
+		return nil
+	}
+	return []trigger.SettingsNote{{SettingID: rewardSettingID, Message: placeholderMessage}}
 }
 
 type fakeStep struct {
@@ -82,6 +102,11 @@ func newTestCatalog(t *testing.T) *automation.Catalog {
 				{ID: redeemerNameVariable, DisplayName: "Redeemer's name", IsCommon: true},
 			},
 		}},
+		notingTrigger{fakeTrigger{definition: trigger.Definition{
+			ID:       notingTriggerID,
+			Sentence: automationsetting.Sentence{automationsetting.Words("someone redeems"), automationsetting.Setting(rewardSettingID)},
+			Settings: []automationsetting.Definition{{ID: rewardSettingID, Kind: automationsetting.KindText, IsRequired: true, Placeholder: rewardPlaceholder}},
+		}}},
 	}
 	steps := []step.Step{
 		fakeStep{

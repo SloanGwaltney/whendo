@@ -2,6 +2,7 @@
   import type {AvailableVariable} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
   import {Kind} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
   import type {Definition as SettingDefinition, VariableReference} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
+  import {describeReward, loadRewardsIfNeeded, rewardSettingKind} from "../rewards.svelte";
   import {formatDuration, variableKey} from "./designerModel";
   import type {Choice, DesignerView, TemplatePart} from "./designerModel";
   import ValuePill from "./ValuePill.svelte";
@@ -26,6 +27,14 @@
 
   const templateParts = $derived(definition.kind === Kind.KindTemplate ? (value as TemplatePart[]) : []);
   const choices = $derived(definition.kind === Kind.KindChoiceList ? (value as Choice[]) : []);
+  const isReward = $derived(definition.kind === rewardSettingKind);
+  // A redeem is named by its title, which only Twitch knows.
+  $effect(() => {
+    if (isReward) {
+      loadRewardsIfNeeded();
+    }
+  });
+
   const optionName = $derived((definition.options ?? []).find((option) => option.id === value)?.displayName ?? String(value));
 </script>
 
@@ -37,12 +46,13 @@
   {optionName}
 {:else if definition.kind === Kind.KindVariable}
   <ValuePill reference={value as VariableReference} {view} isBroken={!isAvailable(value as VariableReference)}/>
+{:else if isReward}
+  {describeReward(String(value))}
 {:else if definition.kind === Kind.KindChoiceList}
   {#each choices as choice, choiceIndex (choice.id)}{#if choiceIndex > 0}{choiceIndex === choices.length - 1 ? " or " : ", "}{/if}<span class="user-text">{choice.text}</span>{/each}
 {:else}
-  <!-- Text, whole numbers, and kinds an integration adds, such as a reward,
-       which show their stored value until the designer has a picker for
-       them. -->
+  <!-- Text, whole numbers, and kinds an integration adds that the designer
+       has no picker for yet, which show their stored value. -->
   {String(value)}
 {/if}
 

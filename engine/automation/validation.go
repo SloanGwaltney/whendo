@@ -204,11 +204,17 @@ func (checker *checker) checkTrigger(selection TriggerSelection) ([]AvailableVar
 		return nil, false
 	}
 	definition := selectedTrigger.Definition()
+	hasSettingProblem := false
 	for _, settingDefinition := range definition.Settings {
 		err := selection.Settings.ValidateSetting(settingDefinition)
 		if err != nil {
+			hasSettingProblem = true
 			addTriggerProblem(settingDefinition.ID, settingProblemMessage("The trigger", settingDefinition, err))
 		}
+	}
+	// Notes are only worth reading once the settings themselves are right.
+	if !hasSettingProblem {
+		checker.noteTriggerSettings(selectedTrigger, selection.Settings)
 	}
 	variables := make([]AvailableVariable, 0, len(definition.Variables))
 	for _, variable := range definition.Variables {
@@ -216,6 +222,18 @@ func (checker *checker) checkTrigger(selection TriggerSelection) ([]AvailableVar
 		variables = append(variables, checker.knownVariable(reference, variable))
 	}
 	return variables, true
+}
+
+// noteTriggerSettings adds what a trigger says is good to know about its
+// settings, such as a placeholder redeem.
+func (checker *checker) noteTriggerSettings(selectedTrigger trigger.Trigger, settings automationsetting.Values) {
+	noter, canNote := selectedTrigger.(trigger.SettingsNoter)
+	if !canNote {
+		return
+	}
+	for _, note := range noter.NoteSettings(settings) {
+		checker.addProblem(Problem{Level: ProblemLevelGoodToKnow, Subject: ProblemSubjectTrigger, SettingID: note.SettingID, Message: note.Message, position: triggerProblemPosition})
+	}
 }
 
 func (checker *checker) knownVariable(reference automationsetting.VariableReference, variable trigger.VariableDefinition) AvailableVariable {

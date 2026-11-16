@@ -481,12 +481,49 @@ func TestCatalog_ListsDefinitionsInTheOrderGiven(t *testing.T) {
 	for _, definition := range catalog.StepDefinitions() {
 		stepIDs = append(stepIDs, definition.ID)
 	}
-	triggerDefinitions := catalog.TriggerDefinitions()
+	var triggerIDs []string
+	for _, definition := range catalog.TriggerDefinitions() {
+		triggerIDs = append(triggerIDs, definition.ID)
+	}
 
 	if !slices.Equal(stepIDs, []string{sayStepType, rollStepType, checkStepType, waitStepType}) {
 		t.Errorf("got steps %v", stepIDs)
 	}
-	if len(triggerDefinitions) != 1 || triggerDefinitions[0].ID != redeemTriggerID {
-		t.Errorf("got triggers %+v", triggerDefinitions)
+	if !slices.Equal(triggerIDs, []string{redeemTriggerID, notingTriggerID}) {
+		t.Errorf("got triggers %v", triggerIDs)
 	}
+}
+
+func TestCheck_ReportsTriggerNotesAsGoodToKnow(t *testing.T) {
+	onPlaceholder := newAutomation(t)
+	onPlaceholder.Trigger = automation.TriggerSelection{ID: notingTriggerID, Settings: automationsetting.Values{rewardSettingID: encode(t, placeholderReward)}}
+
+	report := automation.Check(onPlaceholder, newTestCatalog(t))
+
+	want := automation.Problem{Level: automation.ProblemLevelGoodToKnow, Subject: automation.ProblemSubjectTrigger, SettingID: rewardSettingID, Message: placeholderMessage}
+	if len(report.Problems) != 1 || !problemsMatch(report.Problems[0], want) {
+		t.Errorf("got problems %+v, want only the note", report.Problems)
+	}
+	if _, hasMustFix := report.FirstMustFixProblem(); hasMustFix {
+		t.Error("a note made the automation must-fix")
+	}
+}
+
+func TestCheck_LeavesOutTriggerNotesWhileItsSettingsHaveProblems(t *testing.T) {
+	missingReward := newAutomation(t)
+	missingReward.Trigger = automation.TriggerSelection{ID: notingTriggerID, Settings: automationsetting.Values{}}
+
+	report := automation.Check(missingReward, newTestCatalog(t))
+
+	for _, problem := range report.Problems {
+		if problem.Level == automation.ProblemLevelGoodToKnow {
+			t.Errorf("got note %+v alongside the missing reward", problem)
+		}
+	}
+}
+
+// problemsMatch compares the fields a problem shows, since its position is
+// internal.
+func problemsMatch(got automation.Problem, want automation.Problem) bool {
+	return got.Level == want.Level && got.Subject == want.Subject && got.StepID == want.StepID && got.SettingID == want.SettingID && got.Message == want.Message
 }

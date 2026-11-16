@@ -32,6 +32,18 @@ func TestTestValues_PassEachTriggersOwnFilter(t *testing.T) {
 	}
 }
 
+func TestTestValues_PassTheRedeemFilterForThePlaceholder(t *testing.T) {
+	redeemTrigger := findTrigger(t, twitcheventsub.RedeemTriggerID)
+	settings := textSettings(t, twitcheventsub.RewardSetting, twitcheventsub.PlaceholderRewardID)
+	testValues := redeemTrigger.TestValues(settings, testStreamer)
+
+	_, isMatch, err := redeemTrigger.Filter(trigger.Event{TriggerID: twitcheventsub.RedeemTriggerID, Variables: testValues}, settings)
+
+	if err != nil || !isMatch {
+		t.Errorf("got match %v and error %v, want a test run on the placeholder to match", isMatch, err)
+	}
+}
+
 func TestTestValues_GiveEveryVariableTheFormAsksFor(t *testing.T) {
 	for _, twitchTrigger := range twitcheventsub.Triggers() {
 		definition := twitchTrigger.Definition()

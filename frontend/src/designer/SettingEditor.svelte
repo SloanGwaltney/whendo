@@ -4,7 +4,9 @@
   import {Kind} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
   import type {Definition as SettingDefinition, VariableReference} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
   import type {DesignerView} from "./designerModel";
+  import {rewardSettingKind} from "../rewards.svelte";
   import OptionList from "./OptionList.svelte";
+  import RewardPicker from "./RewardPicker.svelte";
   import TemplateEditor from "./TemplateEditor.svelte";
   import VariablePicker from "./VariablePicker.svelte";
 
@@ -69,6 +71,14 @@
         onDone();
       }}
     />
+  {:else if definition.kind === rewardSettingKind}
+    <RewardPicker
+      selectedRewardID={typeof value === "string" ? value : null}
+      onPick={(rewardID) => {
+        onChange(rewardID);
+        onDone();
+      }}
+    />
   {:else if definition.kind === Kind.KindVariable}
     <VariablePicker
       {availableVariables}
@@ -92,7 +102,7 @@
   {:else}
     <input class="field" value={value ?? ""} placeholder={definition.placeholder} oninput={updateText} onkeydown={finishOnEnter} data-autofocus/>
     {#if !isEngineKind}
-      <!-- An integration's own kind, such as a reward, until it has a picker. -->
+      <!-- An integration's own kind, until it has a picker. -->
       <p class="help">Whendo can't list these yet, so type the value.</p>
     {/if}
   {/if}

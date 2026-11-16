@@ -74,6 +74,16 @@ var ErrUnsupportedSubscription = errors.New("unsupported EventSub subscription")
 // The designer shows a picker of the user's rewards for it.
 const RewardSettingKind automationsetting.Kind = "twitch.reward"
 
+// PlaceholderRewardID stands in for a redeem that doesn't exist yet, so an
+// automation can be built and tested before it does. Twitch's reward IDs are
+// UUIDs, so no real redemption can match it. See
+// docs/design/twitch-redeems.md#the-placeholder-redeem.
+const PlaceholderRewardID = "whendo.placeholder"
+
+// placeholderRewardNote tells the streamer an automation on the placeholder
+// only runs when tested.
+const placeholderRewardNote = "This uses a placeholder redeem, so it only runs when you test it. Pick your real redeem once it's ready."
+
 // Setting IDs for the Twitch triggers.
 const (
 	// RewardSetting is the reward a redeem trigger reacts to.
@@ -132,6 +142,17 @@ func (redeemTrigger) Filter(event trigger.Event, settings automationsetting.Valu
 		return nil, false, nil
 	}
 	return maps.Clone(event.Variables), true, nil
+}
+
+// NoteSettings points out the placeholder redeem. It isn't a must-fix
+// problem, since those block test runs, and testing is what the placeholder
+// is for.
+func (redeemTrigger) NoteSettings(settings automationsetting.Values) []trigger.SettingsNote {
+	rewardID, err := settings.Text(RewardSetting)
+	if err != nil || rewardID != PlaceholderRewardID {
+		return nil
+	}
+	return []trigger.SettingsNote{{SettingID: RewardSetting, Message: placeholderRewardNote}}
 }
 
 type chatMessageTrigger struct{}

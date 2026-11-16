@@ -206,6 +206,8 @@ The check returns:
 - **A step of an unknown type** is a problem, and its branches aren't checked, since its outcomes are unknown.
 - **Branches must match outcomes exactly,** even midway through an edit. When a step's outcomes change, such as a choice being added, the designer adds or removes branches using the outcomes the check returns.
 
+**Triggers can add notes** about their own settings, which the check reports as good to know, such as a [placeholder redeem](twitch-redeems.md#the-placeholder-redeem). They're never must-fix, since rules that make settings invalid belong in the setting definitions, and they're left out while the trigger's settings have problems of their own.
+
 Problems that depend on the world outside the automation, such as OBS not being connected, aren't part of the check. They belong to the integrations, and will come with the first steps that need them.
 
 ### What Definitions Tell the Designer
