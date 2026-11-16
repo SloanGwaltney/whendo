@@ -99,6 +99,7 @@ func main() {
 			application.NewService(automationsService),
 			application.NewService(&TwitchEventsService{listener: twitchListener}),
 			application.NewService(settingsService),
+			application.NewService(&RewardsService{source: newRewardSource(twitchClient)}),
 		},
 		// Two copies would each run every automation and use up Twitch's
 		// connection limit, so a second launch brings the first forward.

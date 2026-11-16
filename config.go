@@ -2,9 +2,13 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/SloanGwaltney/whendo/engine/twitchapi"
+	"github.com/SloanGwaltney/whendo/engine/twitchrewards"
 )
 
 // defaultTwitchClientID identifies Whendo's official Twitch application,
@@ -15,6 +19,15 @@ const defaultTwitchClientID = "b9sfy6khyzesqkcyjmykaylirq4h1o"
 // twitchClientIDEnvironmentVariable lets a developer log in through their
 // own Twitch application instead of the official one.
 const twitchClientIDEnvironmentVariable = "WHENDO_TWITCH_CLIENT_ID"
+
+// fakeRewardsEnvironmentVariable, set to fakeRewardsEnabledValue, replaces
+// Twitch's channel point rewards with made-up ones, for developing on an
+// account without channel points. See
+// docs/design/twitch-redeems.md#developing-without-channel-points.
+const (
+	fakeRewardsEnvironmentVariable = "WHENDO_FAKE_REWARDS"
+	fakeRewardsEnabledValue        = "1"
+)
 
 // twitchRequestTimeout stops a request to Twitch that hangs from blocking a
 // login or refresh forever.
@@ -46,6 +59,16 @@ func twitchClientID() string {
 		return defaultTwitchClientID
 	}
 	return overrideClientID
+}
+
+// newRewardSource returns where channel point rewards come from: Twitch,
+// unless a developer asked for made-up ones.
+func newRewardSource(twitchClient *twitchapi.Client) twitchrewards.Source {
+	if os.Getenv(fakeRewardsEnvironmentVariable) == fakeRewardsEnabledValue {
+		slog.Warn("using made-up channel point rewards instead of Twitch's", "variable", fakeRewardsEnvironmentVariable)
+		return twitchrewards.NewFakeSource()
+	}
+	return twitchrewards.NewTwitchSource(twitchClient)
 }
 
 // Whendo keeps its files in the operating system's per-user config folder,

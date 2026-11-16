@@ -7,6 +7,9 @@ import * as step$0 from "./engine/step/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as trigger$0 from "./engine/trigger/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as twitchrewards$0 from "./engine/twitchrewards/models.js";
 
 /**
  * AutomationSummary is one row of the automation list. Problem explains why
@@ -40,6 +43,16 @@ export interface CatalogDefinitions {
 export interface RetentionLimits {
     "minimumDays": number;
     "maximumDays": number;
+}
+
+/**
+ * RewardList is the account's channel point rewards, or that it has none to
+ * have. An account without channel points isn't an error, since the Redeems
+ * page and the redeem picker explain it rather than fail.
+ */
+export interface RewardList {
+    "hasChannelPoints": boolean;
+    "rewards": twitchrewards$0.Reward[] | null;
 }
 
 /**
