@@ -1,6 +1,6 @@
 # Whendo Overview
 
-- **Last updated:** 2026-11-15
+- **Last updated:** 2026-11-16
 
 This is the starting point for understanding Whendo. It explains what the project is and why it exists, and links to the documents that cover each area in detail.
 
@@ -78,6 +78,7 @@ That means:
 - **[MVP User Redeems](design/mvp-user-redeems.md):** our first user's redeems, the capabilities the MVP needs to support them, and how the TTS Monster integration works.
 - **[Twitch Login](design/twitch-login.md):** the device code flow, scopes, how tokens are refreshed and validated, and where they're stored.
 - **[Twitch EventSub](design/twitch-eventsub.md):** how Whendo receives redeems, chat messages and follows: triggers and their variables, subscriptions, the connection and reconnecting, and connection status.
+- **[Twitch Redeems](design/twitch-redeems.md):** listing, creating and editing channel point redeems, recreating dashboard redeems in Whendo, the redeem picker, the placeholder redeem, and developing without channel points.
 - **[Twitch Steps](design/twitch-steps.md):** the steps that act on Twitch as the streamer, starting with sending a chat message, and how they fail.
 - **[Automation Engine](design/automation-engine.md):** how events become runs: trigger settings and filters, the step contract, variables and templates, queuing, the automation file format and run history files.
 

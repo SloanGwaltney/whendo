@@ -1,7 +1,7 @@
 # MVP User Redeems
 
 - **Status:** Draft
-- **Last updated:** 2026-11-15
+- **Last updated:** 2026-11-16
 
 These are the channel point redeems used by our first MVP user. **The MVP must be able to build every redeem in this document that needs Whendo.** Redeems that Twitch handles entirely by itself are listed so the inventory is complete, but they don't need any automation.
 
@@ -131,6 +131,8 @@ The maintainer's Twitch account isn't monetized, so it has no channel point rede
 Test runs are a user feature, not only a developer tool, because streamers also want to check an automation before going live.
 
 Refunding and fulfilling a redemption call Twitch's API, which fails for a redemption that doesn't exist. In a test run, those steps fail on purpose rather than being faked. In Do a Voice they're the last step, so a test run still shows that everything before them worked.
+
+Building those automations needs a redeem to pick. The [placeholder redeem](twitch-redeems.md#the-placeholder-redeem) covers that for any streamer, and for developing the Redeems page itself, a [fake reward source](twitch-redeems.md#developing-without-channel-points) stands in for Twitch.
 
 Test runs don't check Whendo's connection to Twitch. One option for testing that code is the [Twitch CLI](https://dev.twitch.tv/docs/cli/), which can send mock EventSub events, including channel point redemptions, to a local mock server.
 

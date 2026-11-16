@@ -24,8 +24,8 @@ Once the user is logged in:
 - **Sample gallery:** three or four built-in sample automations, plus a **Blank automation** option. Picking one asks the user for a name, then opens the new automation in the designer.
 
 **Samples that use a redeem:**
-- **Monetized accounts:** ask the user to pick one of their existing redeems to use.
-- **Unmonetized accounts:** explain that the sample needs channel points, which require a monetized account.
+- **Monetized accounts:** ask the user to pick one of their existing redeems to use, or the [placeholder redeem](twitch-redeems.md#the-placeholder-redeem).
+- **Unmonetized accounts:** explain that the sample needs channel points, which require a monetized account, and that it starts with a placeholder redeem to swap for a real one once channel points are turned on.
 - **In both cases:** never create a redeem on the user's behalf without asking.
 
 ### Automation Designer
@@ -53,12 +53,14 @@ The designer lists problems above the steps and marks each step that has one. Cl
 - **Good to know:** problems that don't mean the automation is wrong, for example:
   - OBS isn't connected
   - the redeem wasn't created by Whendo, so refunding or fulfilling it will fail
+  - the trigger uses a placeholder redeem, so the automation only runs when it's tested
+  - the redeem the trigger uses was deleted in Twitch
   - steps can never run because every path above them stops
 - **Problems outside Whendo are never must-fix.** Twitch or OBS being down never makes an automation broken. In particular, a redeem trigger is marked as using a missing redeem only when Twitch confirms that the redeem is gone, not when the list of redeems can't be loaded.
 - **Broken automations can be saved,** so unfinished work is never lost. A broken automation is always saved turned off, and it can't be turned on or test run until its must-fix problems are fixed. Saving a broken edit to an automation that's on turns it off and tells the user so. Home marks broken automations as needing fixing.
 
 ### Redeems
-Lists the user's Twitch channel point redeems. For accounts that aren't monetized, the page is empty and explains why.
+Lists the user's Twitch channel point redeems. For accounts that aren't monetized, the page is empty and explains why, and that automations can still be built on a [placeholder redeem](twitch-redeems.md#the-placeholder-redeem) and switched to a real one later. See [Twitch Redeems](twitch-redeems.md) for how it works.
 
 To detect monetization, Whendo requests the channel's redeems. For unmonetized channels, Twitch returns an error saying the channel isn't monetized, and Whendo uses that error rather than a separate check.
 
