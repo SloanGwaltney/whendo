@@ -220,3 +220,23 @@ func TestTriggers_DeclareExactlyTheVariablesTheirEventsProvide(t *testing.T) {
 		}
 	}
 }
+
+func TestMatchStartOfMessage_MatchesWholeWordIgnoringCapitalization(t *testing.T) {
+	cases := []struct {
+		message           string
+		wantRestOfMessage string
+		wantIsMatch       bool
+	}{
+		{"!A1 please", "please", true},
+		{"!a1", "", true},
+		{"!a10", "", false},
+		{"say !a1", "", false},
+	}
+	for _, testCase := range cases {
+		restOfMessage, isMatch := twitcheventsub.MatchStartOfMessage(testCase.message, "!a1")
+
+		if restOfMessage != testCase.wantRestOfMessage || isMatch != testCase.wantIsMatch {
+			t.Errorf("%q: got %q, %v, want %q, %v", testCase.message, restOfMessage, isMatch, testCase.wantRestOfMessage, testCase.wantIsMatch)
+		}
+	}
+}

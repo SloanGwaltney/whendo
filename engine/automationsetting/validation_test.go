@@ -139,6 +139,21 @@ func TestValidateSetting_ReturnsTooLongPastMaximumLength(t *testing.T) {
 	}
 }
 
+func TestValidateSetting_ReturnsDurationTooLongPastMaximumOnly(t *testing.T) {
+	definition := definitionOf(automationsetting.KindDuration, true)
+	definition.MaximumMilliseconds = 300000
+
+	atMaximumErr := validate(`300000`, definition)
+	pastMaximumErr := validate(`300001`, definition)
+
+	if atMaximumErr != nil {
+		t.Errorf("got error %v at the maximum, want none", atMaximumErr)
+	}
+	if !errors.Is(pastMaximumErr, automationsetting.ErrDurationTooLong) {
+		t.Errorf("got error %v past the maximum, want ErrDurationTooLong", pastMaximumErr)
+	}
+}
+
 func TestValidateSetting_CountsCharactersAndLeavesOutVariables(t *testing.T) {
 	definition := definitionOf(automationsetting.KindTemplate, true)
 	definition.MaximumLength = 3

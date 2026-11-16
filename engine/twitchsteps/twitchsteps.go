@@ -17,6 +17,7 @@ const chatGroup = "Chat"
 func Steps(twitch *twitchapi.Client, rewards RewardLookup) []step.Step {
 	return []step.Step{
 		sendChatMessageStep{twitch: twitch},
+		waitForChatMessageStep{},
 		redemptionStatusStep{twitch: twitch, rewards: rewards, wording: refundWording},
 		redemptionStatusStep{twitch: twitch, rewards: rewards, wording: fulfillWording},
 	}

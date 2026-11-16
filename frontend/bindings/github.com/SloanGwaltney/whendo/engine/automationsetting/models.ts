@@ -35,6 +35,19 @@ export interface Definition {
      * it runs.
      */
     "maximumLength": number;
+
+    /**
+     * MaximumMilliseconds is the longest a KindDuration setting may be, or
+     * 0 for no limit.
+     */
+    "maximumMilliseconds": number;
+
+    /**
+     * InitialValue is the value a new trigger or step starts with, such as
+     * "the person who started this" for who a chat message must come from.
+     * Empty means the setting starts empty.
+     */
+    "initialValue"?: json$0.RawMessage;
 }
 
 /**

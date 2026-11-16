@@ -1,5 +1,7 @@
 import {AfterBranch} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
 import type {Automation, Report, Step} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
+import type {Values} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
+import type {Definition as StepDefinition} from "../../bindings/github.com/SloanGwaltney/whendo/engine/step";
 
 // Changes to a draft automation in the designer. Each function changes the
 // draft in place, so Svelte's deep reactivity updates the page.
@@ -56,12 +58,30 @@ export function newStepID(): string {
   return crypto.randomUUID();
 }
 
-export function insertStep(draft: Automation, listKey: string, index: number, stepType: string): Step | null {
+// Choice IDs only need to be unique within their list, like step IDs within
+// their automation, so the designer makes them itself.
+export function newChoiceID(): string {
+  return crypto.randomUUID();
+}
+
+// initialSettings returns the values a new step starts with, such as who a
+// chat message must come from. Settings without one start empty.
+export function initialSettings(definition: StepDefinition | undefined): Values {
+  const settings: Values = {};
+  for (const setting of definition?.settings ?? []) {
+    if (setting.initialValue !== undefined && setting.initialValue !== null) {
+      settings[setting.id] = structuredClone(setting.initialValue);
+    }
+  }
+  return settings;
+}
+
+export function insertStep(draft: Automation, listKey: string, index: number, stepType: string, definition: StepDefinition | undefined): Step | null {
   const list = stepListByKey(draft, listKey);
   if (!list) {
     return null;
   }
-  const step: Step = {id: newStepID(), type: stepType, settings: {}};
+  const step: Step = {id: newStepID(), type: stepType, settings: initialSettings(definition)};
   list.splice(index, 0, step);
   return step;
 }

@@ -58,6 +58,10 @@ type Input struct {
 	Variables automationsetting.VariableValues
 	// Events lets a step wait for events, such as a reply in chat.
 	Events EventSource
+	// StartedByUserID is the user ID of the person who started the run,
+	// such as the redeemer, or empty when the trigger has no person. See
+	// trigger.Definition.PersonUserIDVariable.
+	StartedByUserID string
 }
 
 // Result is how a step finished: the outcome it took, and the value of each
@@ -100,12 +104,24 @@ type Noter interface {
 	NoteStep(usage Usage) []Note
 }
 
+// UsageChecker is a step whose settings only work with some triggers, such
+// as waiting for "the person who started this" after a trigger that has no
+// person. Its problems are must-fix, unlike a Noter's notes.
+type UsageChecker interface {
+	CheckUsage(usage Usage) []Note
+}
+
 // Usage is where a step is used: its own settings and the trigger the
 // automation starts with.
 type Usage struct {
 	Settings        automationsetting.Values
 	TriggerID       string
 	TriggerSettings automationsetting.Values
+	// TriggerName is the trigger's display name, for messages.
+	TriggerName string
+	// HasTriggerPerson says whether the trigger's events are caused by a
+	// person, so steps can act on "the person who started this".
+	HasTriggerPerson bool
 }
 
 // Note is one thing worth knowing about how a step is used, written for the

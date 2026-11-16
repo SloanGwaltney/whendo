@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -420,9 +421,14 @@ func (checker *checker) checkStepSettings(triggerSelection TriggerSelection, isT
 			continue
 		}
 		isTriggerRight := checker.checkRequiredTrigger(checked, name, triggerSelection.ID)
+		if !isTriggerRight {
+			continue
+		}
+		usage := checker.stepUsage(checked, triggerSelection)
+		isUsageRight := checker.checkStepUsage(checked, usage)
 		// Notes are only worth reading once the step can work at all.
-		if isTriggerRight {
-			checker.noteStep(checked, triggerSelection)
+		if isUsageRight {
+			checker.noteStep(checked, usage)
 		}
 	}
 }
@@ -444,17 +450,42 @@ func (checker *checker) checkRequiredTrigger(checked checkedStep, name string, t
 	return false
 }
 
-// noteStep adds what a step says is good to know about how it's used, such
-// as refunding redemptions of a redeem that can't be refunded.
-func (checker *checker) noteStep(checked checkedStep, triggerSelection TriggerSelection) {
-	noter, canNote := checked.stepType.(step.Noter)
-	if !canNote {
-		return
-	}
+// stepUsage describes where a step is used. It's only called once the
+// trigger is known.
+func (checker *checker) stepUsage(checked checkedStep, triggerSelection TriggerSelection) step.Usage {
 	usage := step.Usage{
 		Settings:        checked.automationStep.Settings,
 		TriggerID:       triggerSelection.ID,
 		TriggerSettings: triggerSelection.Settings,
+	}
+	usedTrigger, isFound := checker.catalog.Trigger(triggerSelection.ID)
+	if isFound {
+		usage.TriggerName = usedTrigger.Definition().DisplayName
+		usage.HasTriggerPerson = usedTrigger.Definition().PersonUserIDVariable != ""
+	}
+	return usage
+}
+
+// checkStepUsage adds a step's must-fix problems with how it's used, and
+// returns whether there were none.
+func (checker *checker) checkStepUsage(checked checkedStep, usage step.Usage) bool {
+	usageChecker, canCheck := checked.stepType.(step.UsageChecker)
+	if !canCheck {
+		return true
+	}
+	problems := usageChecker.CheckUsage(usage)
+	for _, problem := range problems {
+		checker.addProblem(Problem{Level: ProblemLevelMustFix, Subject: ProblemSubjectStep, StepID: checked.automationStep.ID, SettingID: problem.SettingID, Message: problem.Message, position: checked.position})
+	}
+	return len(problems) == 0
+}
+
+// noteStep adds what a step says is good to know about how it's used, such
+// as refunding redemptions of a redeem that can't be refunded.
+func (checker *checker) noteStep(checked checkedStep, usage step.Usage) {
+	noter, canNote := checked.stepType.(step.Noter)
+	if !canNote {
+		return
 	}
 	for _, note := range noter.NoteStep(usage) {
 		checker.addProblem(Problem{Level: ProblemLevelGoodToKnow, Subject: ProblemSubjectStep, StepID: checked.automationStep.ID, SettingID: note.SettingID, Message: note.Message, position: checked.position})
@@ -479,6 +510,8 @@ func settingProblemMessage(name string, definition automationsetting.Definition,
 		return fmt.Sprintf("%s needs a value for “%s”.", name, definition.DisplayName)
 	case errors.Is(err, automationsetting.ErrSettingTooLong):
 		return fmt.Sprintf("%s is over its %d-character limit.", name, definition.MaximumLength)
+	case errors.Is(err, automationsetting.ErrDurationTooLong):
+		return fmt.Sprintf("%s is over its %s limit.", name, durationLimitWords(definition.MaximumMilliseconds))
 	case errors.Is(err, automationsetting.ErrBlankChoice):
 		return fmt.Sprintf("%s has a blank choice.", name)
 	case errors.Is(err, automationsetting.ErrRepeatedChoice):
@@ -486,6 +519,17 @@ func settingProblemMessage(name string, definition automationsetting.Definition,
 	default:
 		return fmt.Sprintf("%s has a value for “%s” that Whendo can't read.", name, definition.DisplayName)
 	}
+}
+
+// durationLimitWords describes a duration limit the way the designer's
+// duration editor shows it: in minutes when it's whole minutes, else in
+// seconds, such as "5-minute".
+func durationLimitWords(milliseconds int64) string {
+	limit := time.Duration(milliseconds) * time.Millisecond
+	if limit%time.Minute == 0 {
+		return fmt.Sprintf("%d-minute", limit/time.Minute)
+	}
+	return fmt.Sprintf("%g-second", limit.Seconds())
 }
 
 // asSentence turns an error message into a sentence for the streamer.

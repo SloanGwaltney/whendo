@@ -39,13 +39,13 @@ The steps that act on Twitch: sending a chat message, waiting for a chat message
 | Setting | Kind | Notes |
 |---|---|---|
 | How long | Duration | Required. More than zero and at most 5 minutes; see [Time Limit](#time-limit). |
-| From | Option | "the person who started this" or "anyone". New steps start on "the person who started this", since that's what a "pick one" prompt almost always wants. |
+| From | Option | "the person who started this" or "anyone". New steps start on "the person who started this", since that's what a "pick one" prompt almost always wants. A setting definition can now give an initial value, which the designer copies into a new step; Whendo refuses to start if a setting's initial value is one the setting itself would refuse. |
 | Choices | Choice list | Required. At least one; blank and repeated choices are already must-fix. |
 
 ### Who Can Answer
 - **No IDs to pick.** Rather than a user ID variable, the step offers "the person who started this" or "anyone". Picking the right ID from a list of variables would mean nothing to most streamers, the same reason [refund and fulfill](#refund-and-fulfill) take no settings.
 - **Each trigger says who started it.** A trigger definition can name the variable holding the user ID of the person behind its event: the redeemer for a redeem, the sender for a chat message and the follower for a follow. The engine passes that ID to the step as part of its input, so the step never knows which trigger it follows.
-- **A trigger without a person** can't be used with "the person who started this". That's a must-fix problem: "“Wait for a chat message” can't wait for the person who started this, because “…” isn't started by a person." All three MVP triggers have one, so this only guards future triggers.
+- **A trigger without a person** can't be used with "the person who started this". A step can check how it's used, given its settings and the trigger, and report must-fix problems, unlike its good to know notes. This one is: "“Wait for a chat message” can't wait for the person who started this, because “…” isn't started by a person." All three MVP triggers have one, so this only guards future triggers.
 - **Messages from anyone else are ignored,** and the step keeps waiting.
 
 ### Matching
@@ -63,13 +63,14 @@ The steps that act on Twitch: sending a chat message, waiting for a chat message
 - **Run history** records which path the step took, as for every step that splits, and the answer's values as for any step's variables.
 
 ### Time Limit
-- **At most 5 minutes.** An automation runs one run at a time, so while this step waits, later runs of the same automation wait behind it. A cap stops a slip, such as 2 hours instead of 2 minutes, from holding up every later redeem. Over the cap is a must-fix problem: "“Wait for a chat message” can wait at most 5 minutes." A duration setting can now declare a maximum, like a text setting's maximum length, and the designer's duration editor won't go past it.
+- **At most 5 minutes.** An automation runs one run at a time, so while this step waits, later runs of the same automation wait behind it. A cap stops a slip, such as 2 hours instead of 2 minutes, from holding up every later redeem. Over the cap is a must-fix problem: "“Wait for a chat message” is over its 5-minute limit.", worded like the character limit's. A duration setting can now declare a maximum, like a text setting's maximum length. The designer's duration editor says "At most 5 minutes." and its arrows stop there.
 - **Revisit later, not in the MVP:** whether a waiting run should hold up its automation's queue at all, or step aside so later runs can start. See [Running and Queuing](automation-engine.md#runs-and-queues).
 - **Losing the connection to Twitch while waiting** isn't a failure. No messages arrive, so the step times out as if no one answered. Run history then shows "timed out" during a time the connection status shows as down.
 - **Shutting down** stops the wait at once, like the wait step.
 
 ### Designer
 - **The choice list gets its editor,** which the designer has been waiting on since choice lists were added. Each choice is a text field with a remove button, plus an "Add a choice" button. The designer makes each new choice's ID, as for step IDs.
+- **Blank choices aren't saved.** A choice still being typed would otherwise show a "blank choice" problem, and clearing a choice's text removes it, like its remove button.
 - **Adding a choice adds a path,** and removing one removes its path if it's empty, using the existing branch reconciling. A path that still has steps stays, with a must-fix problem, so steps are never lost silently.
 
 ### Failures

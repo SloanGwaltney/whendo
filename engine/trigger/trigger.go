@@ -43,6 +43,11 @@ type Definition struct {
 	Sentence  automationsetting.Sentence     `json:"sentence"`
 	Settings  []automationsetting.Definition `json:"settings"`
 	Variables []VariableDefinition           `json:"variables"`
+	// PersonUserIDVariable is the variable holding the user ID of the
+	// person behind the event, such as the redeemer, so a step can act on
+	// "the person who started this" without knowing which trigger it
+	// follows. Empty means the trigger's events aren't caused by a person.
+	PersonUserIDVariable string `json:"personUserIdVariable"`
 }
 
 // Trigger is a trigger an integration offers, with the filter that decides

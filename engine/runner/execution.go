@@ -12,6 +12,7 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/automation"
 	"github.com/SloanGwaltney/whendo/engine/automationsetting"
 	"github.com/SloanGwaltney/whendo/engine/step"
+	"github.com/SloanGwaltney/whendo/engine/trigger"
 )
 
 const interruptedReason = "Whendo shut down while this run was in progress."
@@ -25,6 +26,9 @@ type runExecution struct {
 	runner    *Runner
 	record    RunRecord
 	variables automationsetting.VariableValues
+	// startedByUserID is the user ID of the person who started the run, or
+	// empty when the trigger has no person.
+	startedByUserID string
 }
 
 // execute runs one queued run to its end and returns its record. A step
@@ -55,12 +59,13 @@ func (runner *Runner) execute(run pendingRun, automationAtStart automation.Autom
 		record = execution.finish(panicErr)
 	}()
 
-	variables, err := runner.triggerVariableValues(automationAtStart, run.triggerVariables)
-	if err != nil {
-		return execution.finish(err)
+	runTrigger, isKnown := runner.catalog.Trigger(automationAtStart.Trigger.ID)
+	if !isKnown {
+		return execution.finish(fmt.Errorf("there's no trigger %q", automationAtStart.Trigger.ID))
 	}
-	execution.variables = variables
-	_, err = execution.executeSequence(automationAtStart.Steps)
+	execution.variables = triggerVariableValues(runTrigger.Definition(), run.triggerVariables)
+	execution.startedByUserID = startedByUserID(runTrigger.Definition(), run.triggerVariables)
+	_, err := execution.executeSequence(automationAtStart.Steps)
 	return execution.finish(err)
 }
 
@@ -68,17 +73,22 @@ func (runner *Runner) execute(run pendingRun, automationAtStart automation.Autom
 // to the steps. A declared variable missing from the event, which can happen
 // in a test run, is empty rather than unavailable, since validation already
 // promised the steps it exists.
-func (runner *Runner) triggerVariableValues(runAutomation automation.Automation, triggerVariables map[string]string) (automationsetting.VariableValues, error) {
-	runTrigger, isKnown := runner.catalog.Trigger(runAutomation.Trigger.ID)
-	if !isKnown {
-		return nil, fmt.Errorf("there's no trigger %q", runAutomation.Trigger.ID)
-	}
+func triggerVariableValues(triggerDefinition trigger.Definition, triggerVariables map[string]string) automationsetting.VariableValues {
 	variables := automationsetting.VariableValues{}
-	for _, variable := range runTrigger.Definition().Variables {
+	for _, variable := range triggerDefinition.Variables {
 		reference := automationsetting.VariableReference{Source: automationsetting.VariableSourceTrigger, ID: variable.ID}
 		variables[reference] = triggerVariables[variable.ID]
 	}
-	return variables, nil
+	return variables
+}
+
+// startedByUserID returns the user ID of the person behind the run's event,
+// or empty when the trigger has no person.
+func startedByUserID(triggerDefinition trigger.Definition, triggerVariables map[string]string) string {
+	if triggerDefinition.PersonUserIDVariable == "" {
+		return ""
+	}
+	return triggerVariables[triggerDefinition.PersonUserIDVariable]
 }
 
 // markUnfinishedStepFailed records a failure on the step that was running
@@ -198,9 +208,10 @@ func (execution *runExecution) performStep(automationStep automation.Step) (step
 		return step.Outcome{}, nil, fmt.Errorf("working out the step's outcomes: %w", err)
 	}
 	result, err := stepType.Run(execution.runner.runContext, step.Input{
-		Settings:  automationStep.Settings,
-		Variables: maps.Clone(execution.variables),
-		Events:    &execution.runner.subscriptions,
+		Settings:        automationStep.Settings,
+		Variables:       maps.Clone(execution.variables),
+		Events:          &execution.runner.subscriptions,
+		StartedByUserID: execution.startedByUserID,
 	})
 	if execution.runner.runContext.Err() != nil {
 		return step.Outcome{}, result.Details, errRunInterrupted

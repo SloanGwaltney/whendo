@@ -127,6 +127,7 @@ func (redeemTrigger) Definition() trigger.Definition {
 			{ID: RewardIDVariable, DisplayName: "Reward ID", IsSetBySettings: true},
 			{ID: RedemptionIDVariable, DisplayName: "Redemption ID"},
 		},
+		PersonUserIDVariable: RedeemerUserIDVariable,
 	}
 }
 
@@ -176,6 +177,7 @@ func (chatMessageTrigger) Definition() trigger.Definition {
 			{ID: SenderUserIDVariable, DisplayName: "Sender's user ID"},
 			{ID: MessageIDVariable, DisplayName: "Message ID"},
 		},
+		PersonUserIDVariable: SenderUserIDVariable,
 	}
 }
 
@@ -195,7 +197,7 @@ func (chatMessageTrigger) Filter(event trigger.Event, settings automationsetting
 	if event.TriggerID != ChatMessageTriggerID {
 		return nil, false, nil
 	}
-	restOfMessage, isMatch := matchStartOfMessage(event.Variables[MessageTextVariable], startText)
+	restOfMessage, isMatch := MatchStartOfMessage(event.Variables[MessageTextVariable], startText)
 	if !isMatch {
 		return nil, false, nil
 	}
@@ -204,12 +206,12 @@ func (chatMessageTrigger) Filter(event trigger.Event, settings automationsetting
 	return variables, true, nil
 }
 
-// matchStartOfMessage reports whether message starts with startText,
+// MatchStartOfMessage reports whether message starts with startText,
 // ignoring capitalization, as a whole word: "!a1" matches "!a1 please" but
 // not "!a10". It compares rune by rune rather than slicing message to
 // startText's length, because a letter and its other case can take a
 // different number of bytes.
-func matchStartOfMessage(message string, startText string) (restOfMessage string, isMatch bool) {
+func MatchStartOfMessage(message string, startText string) (restOfMessage string, isMatch bool) {
 	remainingMessage := message
 	for _, startRune := range startText {
 		messageRune, runeSize := utf8.DecodeRuneInString(remainingMessage)
@@ -239,6 +241,7 @@ func (followTrigger) Definition() trigger.Definition {
 			{ID: FollowerLoginVariable, DisplayName: "Follower's login name"},
 			{ID: FollowerUserIDVariable, DisplayName: "Follower's user ID"},
 		},
+		PersonUserIDVariable: FollowerUserIDVariable,
 	}
 }
 

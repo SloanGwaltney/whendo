@@ -26,6 +26,14 @@ export interface Definition {
     "sentence": automationsetting$0.Sentence;
     "settings": automationsetting$0.Definition[] | null;
     "variables": VariableDefinition[] | null;
+
+    /**
+     * PersonUserIDVariable is the variable holding the user ID of the
+     * person behind the event, such as the redeemer, so a step can act on
+     * "the person who started this" without knowing which trigger it
+     * follows. Empty means the trigger's events aren't caused by a person.
+     */
+    "personUserIdVariable": string;
 }
 
 /**

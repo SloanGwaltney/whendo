@@ -67,9 +67,8 @@ export function useDesignerActions(): DesignerActions | undefined {
   return getContext<DesignerActions | undefined>(designerActionsKey);
 }
 
-// Kinds the designer can edit so far. Choice lists get their editor once a
-// step uses them.
-const editableKinds = new Set<string>([Kind.KindText, Kind.KindTemplate, Kind.KindWholeNumber, Kind.KindDuration, Kind.KindOption, Kind.KindVariable]);
+// Every kind the engine has can be edited in the designer.
+const editableKinds = new Set<string>([Kind.KindText, Kind.KindTemplate, Kind.KindWholeNumber, Kind.KindDuration, Kind.KindOption, Kind.KindVariable, Kind.KindChoiceList]);
 
 // isEditableKind is also true for kinds an integration adds. A reward has
 // its own picker; any other is edited as text until it has one.

@@ -37,6 +37,7 @@ const (
 	replierVariable  = "replier"
 	replyWord        = "reply"
 	badOutcomeType   = "test.badOutcome"
+	sayStarterType   = "test.sayStarter"
 	chooseStepName   = "Choose an outcome"
 	firstChoiceText  = "!a1"
 	chosenName       = "Chosen"
@@ -63,6 +64,7 @@ func (eventTrigger) Definition() trigger.Definition {
 			{ID: wordVariable, DisplayName: "Word"},
 			{ID: senderVariable, DisplayName: "Sender"},
 		},
+		PersonUserIDVariable: senderVariable,
 	}
 }
 
@@ -232,6 +234,14 @@ func (testHarness *harness) steps() []step.Step {
 						return step.Result{}, ctx.Err()
 					}
 				}
+			},
+		},
+		fakeStep{
+			definition: step.Definition{ID: sayStarterType},
+			outcomes:   singleOutcome,
+			run: func(ctx context.Context, input step.Input) (step.Result, error) {
+				testHarness.said <- input.StartedByUserID
+				return doneResult(), nil
 			},
 		},
 		fakeStep{

@@ -45,6 +45,11 @@ const (
 
 	// refundStepType only works in automations the redeem trigger starts,
 	// and notes when that redeem's reward can't be refunded.
+	pauseStepType       = "test.pause"
+	pauseSettingID      = "duration"
+	maximumPause        = 300000
+	greetStepType       = "test.greetPerson"
+	noPersonMessage     = "There's no one to greet."
 	refundStepType      = "test.refund"
 	unrefundableReward  = "unrefundable"
 	unrefundableMessage = "This redeem can't be refunded."
@@ -111,14 +116,28 @@ func (refundStep) NoteStep(usage step.Usage) []step.Note {
 	return []step.Note{{Message: unrefundableMessage}}
 }
 
+// greetPersonStep greets the person who started the automation, so tests
+// can check how the check reports a step's usage problems.
+type greetPersonStep struct {
+	fakeStep
+}
+
+func (greetPersonStep) CheckUsage(usage step.Usage) []step.Note {
+	if usage.HasTriggerPerson {
+		return nil
+	}
+	return []step.Note{{Message: noPersonMessage}}
+}
+
 func newTestCatalog(t *testing.T) *automation.Catalog {
 	t.Helper()
 	triggers := []trigger.Trigger{
 		fakeTrigger{definition: trigger.Definition{
-			ID:          redeemTriggerID,
-			DisplayName: "Redeem",
-			Sentence:    automationsetting.Sentence{automationsetting.Words("someone redeems"), automationsetting.Setting(rewardSettingID)},
-			Settings:    []automationsetting.Definition{{ID: rewardSettingID, Kind: automationsetting.KindText, IsRequired: true, Placeholder: rewardPlaceholder}},
+			ID:                   redeemTriggerID,
+			DisplayName:          "Redeem",
+			PersonUserIDVariable: redeemerNameVariable,
+			Sentence:             automationsetting.Sentence{automationsetting.Words("someone redeems"), automationsetting.Setting(rewardSettingID)},
+			Settings:             []automationsetting.Definition{{ID: rewardSettingID, Kind: automationsetting.KindText, IsRequired: true, Placeholder: rewardPlaceholder}},
 			Variables: []trigger.VariableDefinition{
 				{ID: redeemerNameVariable, DisplayName: "Redeemer's name", IsCommon: true},
 			},
@@ -165,6 +184,21 @@ func newTestCatalog(t *testing.T) *automation.Catalog {
 				{ID: timedOutOutcomeID, DisplayName: "Timed out"},
 			},
 		},
+		fakeStep{
+			definition: step.Definition{
+				ID:          pauseStepType,
+				DisplayName: "Pause",
+				Sentence:    automationsetting.Sentence{automationsetting.Words("Pause"), automationsetting.Setting(pauseSettingID)},
+				Settings: []automationsetting.Definition{
+					{ID: pauseSettingID, DisplayName: "How long", Kind: automationsetting.KindDuration, IsRequired: true, MaximumMilliseconds: maximumPause},
+				},
+			},
+			outcomes: []step.Outcome{{ID: step.DefaultOutcomeID}},
+		},
+		greetPersonStep{fakeStep{
+			definition: step.Definition{ID: greetStepType, DisplayName: "Greet"},
+			outcomes:   []step.Outcome{{ID: step.DefaultOutcomeID}},
+		}},
 		refundStep{fakeStep{
 			definition: step.Definition{ID: refundStepType, DisplayName: "Refund", RequiredTriggerID: redeemTriggerID},
 			outcomes:   []step.Outcome{{ID: step.DefaultOutcomeID}},

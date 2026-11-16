@@ -62,6 +62,13 @@ type Definition struct {
 	// the template's own text, since variables' values aren't known until
 	// it runs.
 	MaximumLength int `json:"maximumLength"`
+	// MaximumMilliseconds is the longest a KindDuration setting may be, or
+	// 0 for no limit.
+	MaximumMilliseconds int64 `json:"maximumMilliseconds"`
+	// InitialValue is the value a new trigger or step starts with, such as
+	// "the person who started this" for who a chat message must come from.
+	// Empty means the setting starts empty.
+	InitialValue json.RawMessage `json:"initialValue,omitempty"`
 }
 
 // Choice is one entry in a KindChoiceList setting. Its ID stays the same
@@ -80,6 +87,9 @@ var (
 	// ErrSettingTooLong means a setting holds more characters than its
 	// definition's MaximumLength.
 	ErrSettingTooLong = errors.New("setting value is too long")
+	// ErrDurationTooLong means a duration setting is longer than its
+	// definition's MaximumMilliseconds.
+	ErrDurationTooLong = errors.New("duration is too long")
 	// ErrBlankChoice and ErrRepeatedChoice are the ways a choice list can be
 	// invalid that a user can cause. Both are also ErrSettingInvalid.
 	ErrBlankChoice    = fmt.Errorf("%w: a choice is blank", ErrSettingInvalid)

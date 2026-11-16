@@ -13,6 +13,12 @@ var (
 	// ErrDuplicateID means two triggers or two steps given to a catalog
 	// share an ID.
 	ErrDuplicateID = errors.New("duplicate ID")
+	// ErrUnknownPersonVariable means a trigger names a person variable it
+	// doesn't declare.
+	ErrUnknownPersonVariable = errors.New("person variable isn't declared")
+	// ErrInvalidInitialValue means a setting starts with a value it
+	// wouldn't accept.
+	ErrInvalidInitialValue = errors.New("initial value isn't valid")
 	// ErrSentenceMismatch means a trigger's or step's sentence doesn't place
 	// each of its settings exactly once, so the designer couldn't show it.
 	ErrSentenceMismatch = errors.New("sentence doesn't match settings")
@@ -47,6 +53,10 @@ func NewCatalog(triggers []trigger.Trigger, steps []step.Step) (*Catalog, error)
 		if err != nil {
 			return nil, fmt.Errorf("trigger %q: %w", definition.ID, err)
 		}
+		err = checkPersonVariable(definition)
+		if err != nil {
+			return nil, fmt.Errorf("trigger %q: %w", definition.ID, err)
+		}
 		catalog.triggersByID[definition.ID] = catalogTrigger
 	}
 	for _, catalogStep := range steps {
@@ -55,6 +65,10 @@ func NewCatalog(triggers []trigger.Trigger, steps []step.Step) (*Catalog, error)
 			return nil, fmt.Errorf("%w: two steps have ID %q", ErrDuplicateID, definition.ID)
 		}
 		err := checkSentence(definition.Sentence, definition.Settings)
+		if err != nil {
+			return nil, fmt.Errorf("step %q: %w", definition.ID, err)
+		}
+		err = checkInitialValues(definition.Settings)
 		if err != nil {
 			return nil, fmt.Errorf("step %q: %w", definition.ID, err)
 		}
@@ -82,6 +96,35 @@ func checkSentence(sentence automationsetting.Sentence, settings []automationset
 		return fmt.Errorf("%w: the sentence places a setting that isn't defined", ErrSentenceMismatch)
 	}
 	return nil
+}
+
+// checkInitialValues makes sure every setting starts with a value it
+// accepts, so a new step never starts out broken.
+func checkInitialValues(settings []automationsetting.Definition) error {
+	for _, setting := range settings {
+		if setting.InitialValue == nil {
+			continue
+		}
+		err := automationsetting.Values{setting.ID: setting.InitialValue}.ValidateSetting(setting)
+		if err != nil {
+			return fmt.Errorf("%w: setting %q: %w", ErrInvalidInitialValue, setting.ID, err)
+		}
+	}
+	return nil
+}
+
+// checkPersonVariable makes sure a trigger's person is one of its own
+// variables, so steps waiting for that person are given a real user ID.
+func checkPersonVariable(definition trigger.Definition) error {
+	if definition.PersonUserIDVariable == "" {
+		return nil
+	}
+	for _, variable := range definition.Variables {
+		if variable.ID == definition.PersonUserIDVariable {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: %q", ErrUnknownPersonVariable, definition.PersonUserIDVariable)
 }
 
 // TriggerDefinitions returns the definition of every trigger, in order.

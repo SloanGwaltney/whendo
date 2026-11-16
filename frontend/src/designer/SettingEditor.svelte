@@ -5,6 +5,8 @@
   import type {Definition as SettingDefinition, VariableReference} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
   import type {DesignerView} from "./designerModel";
   import {rewardSettingKind} from "../rewards.svelte";
+  import ChoiceListEditor from "./ChoiceListEditor.svelte";
+  import {formatDuration} from "./designerModel";
   import OptionList from "./OptionList.svelte";
   import RewardPicker from "./RewardPicker.svelte";
   import TemplateEditor from "./TemplateEditor.svelte";
@@ -31,6 +33,10 @@
   const isInitiallyMinutes = initialMilliseconds !== null && initialMilliseconds >= millisecondsPerMinute && initialMilliseconds % millisecondsPerMinute === 0;
   let durationUnitMilliseconds = $state(isInitiallyMinutes ? millisecondsPerMinute : millisecondsPerSecond);
   let durationAmount = $state(initialMilliseconds === null ? "" : String(initialMilliseconds / (isInitiallyMinutes ? millisecondsPerMinute : millisecondsPerSecond)));
+
+  // The input's own limit follows the unit, so its arrows stop at the
+  // maximum. A longer value typed in is still reported by the check.
+  const maximumDurationAmount = $derived(definition.maximumMilliseconds > 0 ? Math.floor(definition.maximumMilliseconds / durationUnitMilliseconds) : undefined);
 
   function updateDuration(): void {
     const amount = Number.parseFloat(durationAmount);
@@ -93,12 +99,17 @@
     <input class="field" type="number" step="1" value={value ?? ""} oninput={updateWholeNumber} onkeydown={finishOnEnter} data-autofocus/>
   {:else if definition.kind === Kind.KindDuration}
     <div class="row">
-      <input class="field" type="number" min="1" step="1" bind:value={durationAmount} oninput={updateDuration} onkeydown={finishOnEnter} aria-label="How many" data-autofocus/>
+      <input class="field" type="number" min="1" max={maximumDurationAmount} step="1" bind:value={durationAmount} oninput={updateDuration} onkeydown={finishOnEnter} aria-label="How many" data-autofocus/>
       <select class="field unit" bind:value={durationUnitMilliseconds} onchange={updateDuration} aria-label="Unit">
         <option value={millisecondsPerSecond}>seconds</option>
         <option value={millisecondsPerMinute}>minutes</option>
       </select>
     </div>
+    {#if definition.maximumMilliseconds > 0}
+      <p class="help">At most {formatDuration(definition.maximumMilliseconds)}.</p>
+    {/if}
+  {:else if definition.kind === Kind.KindChoiceList}
+    <ChoiceListEditor {value} placeholder={definition.placeholder} {onChange} {onDone}/>
   {:else}
     <input class="field" value={value ?? ""} placeholder={definition.placeholder} oninput={updateText} onkeydown={finishOnEnter} data-autofocus/>
     {#if !isEngineKind}

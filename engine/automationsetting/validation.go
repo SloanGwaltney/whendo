@@ -3,6 +3,7 @@ package automationsetting
 import (
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -28,8 +29,7 @@ func (values Values) ValidateSetting(definition Definition) error {
 		_, err := values.WholeNumber(definition.ID)
 		return err
 	case KindDuration:
-		_, err := values.Duration(definition.ID)
-		return err
+		return values.validateDuration(definition)
 	case KindVariable:
 		_, err := values.VariableReference(definition.ID)
 		return err
@@ -65,6 +65,18 @@ func (values Values) validateText(definition Definition) error {
 func checkLength(definition Definition, characterCount int) error {
 	if definition.MaximumLength > 0 && characterCount > definition.MaximumLength {
 		return fmt.Errorf("%w: %q has %d characters, more than %d", ErrSettingTooLong, definition.ID, characterCount, definition.MaximumLength)
+	}
+	return nil
+}
+
+func (values Values) validateDuration(definition Definition) error {
+	duration, err := values.Duration(definition.ID)
+	if err != nil {
+		return err
+	}
+	maximum := time.Duration(definition.MaximumMilliseconds) * time.Millisecond
+	if maximum > 0 && duration > maximum {
+		return fmt.Errorf("%w: %q is %s, more than %s", ErrDurationTooLong, definition.ID, duration, maximum)
 	}
 	return nil
 }

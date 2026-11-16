@@ -34,6 +34,17 @@ func TestReceiveEvent_RunsMatchingAutomationWithTriggerVariables(t *testing.T) {
 	}
 }
 
+func TestRun_GivesStepsTheUserIDOfThePersonWhoStartedIt(t *testing.T) {
+	testHarness := newHarness(t)
+	testHarness.addAutomation(testHarness.newAutomation("starter", "hello", simpleStep("sayStarter", sayStarterType)))
+
+	testHarness.sendEvent("hello", "Cooler_User")
+
+	if said := testHarness.awaitSaid(); said != "Cooler_User" {
+		t.Errorf("got started by %q, want the sender", said)
+	}
+}
+
 func TestReceiveEvent_IgnoresNonMatchingAndDisabledAutomations(t *testing.T) {
 	testHarness := newHarness(t)
 	otherWord := testHarness.newAutomation("otherWord", "goodbye", testHarness.sayStep("say", "wrong word"))

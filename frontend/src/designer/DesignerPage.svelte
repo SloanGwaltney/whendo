@@ -225,7 +225,8 @@
       return;
     }
     rememberForUndo();
-    const step = insertStep(draft, listKey, index, stepType);
+    const definition = catalog?.steps?.find((stepDefinition) => stepDefinition.id === stepType);
+    const step = insertStep(draft, listKey, index, stepType, definition);
     openPopover = null;
     markChanged();
     if (step) {

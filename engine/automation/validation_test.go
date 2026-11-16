@@ -319,6 +319,17 @@ func TestCheck_ReportsMessageWhoseOwnTextIsTooLong(t *testing.T) {
 	assertMustFix(t, newAutomation(t, tooLongStep), automation.ProblemSubjectStep, "say")
 }
 
+func TestCheck_ReportsDurationOverItsLimitInMinutes(t *testing.T) {
+	tooLongPause := automation.Step{ID: "pause", Type: pauseStepType, Settings: automationsetting.Values{pauseSettingID: encode(t, maximumPause+1)}}
+
+	report := automation.Check(newAutomation(t, tooLongPause), newTestCatalog(t))
+
+	want := automation.Problem{Level: automation.ProblemLevelMustFix, Subject: automation.ProblemSubjectStep, StepID: "pause", SettingID: pauseSettingID, Message: "“Pause” is over its 5-minute limit."}
+	if len(report.Problems) != 1 || !problemsMatch(report.Problems[0], want) {
+		t.Errorf("got problems %+v, want only %+v", report.Problems, want)
+	}
+}
+
 func TestCheck_ReportsStepsAfterSplitWhereEveryBranchEndsAsGoodToKnow(t *testing.T) {
 	testAutomation := newAutomation(t,
 		waitStep("wait",
@@ -474,6 +485,47 @@ func TestNewCatalog_ReturnsErrorWhenSentenceDoesntPlaceEachSettingOnce(t *testin
 	}
 }
 
+func TestNewCatalog_ReturnsErrorWhenTriggersPersonIsntOneOfItsVariables(t *testing.T) {
+	withUnknownPerson := fakeTrigger{definition: trigger.Definition{ID: "test.unknownPerson", PersonUserIDVariable: "nobody"}}
+
+	_, err := automation.NewCatalog([]trigger.Trigger{withUnknownPerson}, nil)
+
+	if !errors.Is(err, automation.ErrUnknownPersonVariable) {
+		t.Errorf("got error %v, want ErrUnknownPersonVariable", err)
+	}
+}
+
+func TestNewCatalog_ReturnsErrorWhenASettingStartsWithAValueItRefuses(t *testing.T) {
+	brokenStart := fakeStep{definition: step.Definition{
+		ID:       "test.brokenStart",
+		Sentence: automationsetting.Sentence{automationsetting.Setting(pauseSettingID)},
+		Settings: []automationsetting.Definition{{ID: pauseSettingID, Kind: automationsetting.KindDuration, MaximumMilliseconds: maximumPause, InitialValue: encode(t, maximumPause+1)}},
+	}}
+
+	_, err := automation.NewCatalog(nil, []step.Step{brokenStart})
+
+	if !errors.Is(err, automation.ErrInvalidInitialValue) {
+		t.Errorf("got error %v, want ErrInvalidInitialValue", err)
+	}
+}
+
+func TestCheck_ReportsStepUsageProblemsAsMustFix(t *testing.T) {
+	greetWithoutPerson := newAutomation(t, automation.Step{ID: "greet", Type: greetStepType})
+	greetWithoutPerson.Trigger = automation.TriggerSelection{ID: notingTriggerID, Settings: automationsetting.Values{rewardSettingID: encode(t, "reward-1")}}
+	greetWithPerson := newAutomation(t, automation.Step{ID: "greet", Type: greetStepType})
+
+	withoutPersonReport := automation.Check(greetWithoutPerson, newTestCatalog(t))
+	withPersonReport := automation.Check(greetWithPerson, newTestCatalog(t))
+
+	want := automation.Problem{Level: automation.ProblemLevelMustFix, Subject: automation.ProblemSubjectStep, StepID: "greet", Message: noPersonMessage}
+	if len(withoutPersonReport.Problems) != 1 || !problemsMatch(withoutPersonReport.Problems[0], want) {
+		t.Errorf("got problems %+v, want only %+v", withoutPersonReport.Problems, want)
+	}
+	if len(withPersonReport.Problems) != 0 {
+		t.Errorf("got problems %+v with a person, want none", withPersonReport.Problems)
+	}
+}
+
 func TestCatalog_ListsDefinitionsInTheOrderGiven(t *testing.T) {
 	catalog := newTestCatalog(t)
 
@@ -486,7 +538,7 @@ func TestCatalog_ListsDefinitionsInTheOrderGiven(t *testing.T) {
 		triggerIDs = append(triggerIDs, definition.ID)
 	}
 
-	if !slices.Equal(stepIDs, []string{sayStepType, rollStepType, checkStepType, waitStepType, refundStepType}) {
+	if !slices.Equal(stepIDs, []string{sayStepType, rollStepType, checkStepType, waitStepType, pauseStepType, greetStepType, refundStepType}) {
 		t.Errorf("got steps %v", stepIDs)
 	}
 	if !slices.Equal(triggerIDs, []string{redeemTriggerID, notingTriggerID}) {
