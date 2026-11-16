@@ -83,3 +83,23 @@ func (service *SettingsService) SetRunHistoryRetentionDays(retentionDays int) er
 func (service *SettingsService) runHistoryRetentionDays() int {
 	return service.GetSettings().RunHistoryRetentionDays
 }
+
+// streamingSoftware is the program the streamer chose, for connecting to it.
+func (service *SettingsService) streamingSoftware() appsettings.StreamingSoftware {
+	return service.GetSettings().StreamingSoftware
+}
+
+// setStreamingSoftware saves the program the streamer chose. Connecting to
+// it is up to the caller.
+func (service *SettingsService) setStreamingSoftware(software appsettings.StreamingSoftware) error {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	changedSettings := service.settings
+	changedSettings.StreamingSoftware = software
+	err := service.settingsStore.Save(changedSettings)
+	if err != nil {
+		return fmt.Errorf("saving your streaming software: %w", err)
+	}
+	service.settings = changedSettings
+	return nil
+}

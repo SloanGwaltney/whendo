@@ -34,7 +34,27 @@ const (
 	fileIndentation           = "  "
 )
 
+// StreamingSoftware is the program the streamer streams with, which the
+// show and hide steps act on. See docs/design/streaming-software.md.
+type StreamingSoftware string
+
+const (
+	// StreamingSoftwareNone means Whendo doesn't connect to any streaming
+	// software. It's the default, so streamers who don't need it are never
+	// nagged about a connection.
+	StreamingSoftwareNone              StreamingSoftware = "none"
+	StreamingSoftwareStreamlabsDesktop StreamingSoftware = "streamlabsDesktop"
+)
+
+// isKnown reports whether this version of Whendo supports the program.
+func (software StreamingSoftware) isKnown() bool {
+	return software == StreamingSoftwareNone || software == StreamingSoftwareStreamlabsDesktop
+}
+
 var (
+	// ErrUnknownStreamingSoftware means the streaming software isn't one
+	// Whendo supports.
+	ErrUnknownStreamingSoftware = errors.New("streaming software isn't one Whendo supports")
 	// ErrRetentionOutOfRange means a run history retention period is
 	// outside the range the user can choose.
 	ErrRetentionOutOfRange = fmt.Errorf("run history has to be kept for %d to %d days", MinimumRunHistoryRetentionDays, MaximumRunHistoryRetentionDays)
@@ -48,17 +68,23 @@ type Settings struct {
 	// RunHistoryRetentionDays is how many days before today run history is
 	// kept for.
 	RunHistoryRetentionDays int `json:"runHistoryRetentionDays"`
+	// StreamingSoftware is the program Whendo connects to for the show and
+	// hide steps.
+	StreamingSoftware StreamingSoftware `json:"streamingSoftware"`
 }
 
 // Defaults returns the settings a new user starts with.
 func Defaults() Settings {
-	return Settings{RunHistoryRetentionDays: runhistory.DefaultRetentionDays}
+	return Settings{RunHistoryRetentionDays: runhistory.DefaultRetentionDays, StreamingSoftware: StreamingSoftwareNone}
 }
 
 // Validate checks that every setting has a value the user could choose.
 func (settings Settings) Validate() error {
 	if settings.RunHistoryRetentionDays < MinimumRunHistoryRetentionDays || settings.RunHistoryRetentionDays > MaximumRunHistoryRetentionDays {
 		return fmt.Errorf("%w, not %d", ErrRetentionOutOfRange, settings.RunHistoryRetentionDays)
+	}
+	if !settings.StreamingSoftware.isKnown() {
+		return fmt.Errorf("%w: %q", ErrUnknownStreamingSoftware, settings.StreamingSoftware)
 	}
 	return nil
 }

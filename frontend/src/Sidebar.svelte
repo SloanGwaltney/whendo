@@ -1,6 +1,7 @@
 <script lang="ts">
   import {navigationItems} from "./navigation";
   import type {PageId} from "./navigation";
+  import StreamingSoftwareStatus from "./StreamingSoftwareStatus.svelte";
   import TwitchConnectionStatus from "./TwitchConnectionStatus.svelte";
   import Wordmark from "./Wordmark.svelte";
 
@@ -23,9 +24,9 @@
       >{item.label}</button>
     {/each}
   </nav>
-  <!-- OBS's status joins Twitch's here once the OBS integration exists. -->
   <div class="statuses">
     <TwitchConnectionStatus {accountLogin}/>
+    <StreamingSoftwareStatus/>
   </div>
 </aside>
 

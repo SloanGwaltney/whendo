@@ -3,7 +3,13 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as appsettings$0 from "./engine/appsettings/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as step$0 from "./engine/step/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as streamlabs$0 from "./engine/streamlabs/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as trigger$0 from "./engine/trigger/models.js";
@@ -100,6 +106,19 @@ export interface SaveResult {
      * problems, so it was saved turned off.
      */
     "isTurnedOffUntilFixed": boolean;
+}
+
+/**
+ * StreamingSoftwareState is everything the UI needs to show the streaming
+ * software and its connection status.
+ */
+export interface StreamingSoftwareState {
+    "software": appsettings$0.StreamingSoftware;
+
+    /**
+     * Status means nothing while Software is none.
+     */
+    "status": streamlabs$0.ConnectionStatus;
 }
 
 /**

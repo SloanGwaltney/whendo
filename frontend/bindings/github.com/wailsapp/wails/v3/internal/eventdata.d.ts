@@ -7,6 +7,9 @@ import type { Events } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import type * as main$0 from "../../../../SloanGwaltney/whendo/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import type * as runner$0 from "../../../../SloanGwaltney/whendo/engine/runner/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -19,6 +22,7 @@ declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
             "run-ended": runner$0.RunRecord;
+            "streaming-software-state-changed": main$0.StreamingSoftwareState;
             "twitch-connection-state-changed": twitcheventsub$0.ConnectionState;
             "twitch-login-state-changed": twitchauth$0.LoginState;
         }

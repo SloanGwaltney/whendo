@@ -4,12 +4,14 @@
 import * as AutomationsService from "./automationsservice.js";
 import * as RewardsService from "./rewardsservice.js";
 import * as SettingsService from "./settingsservice.js";
+import * as StreamingSoftwareService from "./streamingsoftwareservice.js";
 import * as TwitchEventsService from "./twitcheventsservice.js";
 import * as TwitchLoginService from "./twitchloginservice.js";
 export {
     AutomationsService,
     RewardsService,
     SettingsService,
+    StreamingSoftwareService,
     TwitchEventsService,
     TwitchLoginService
 };
@@ -22,5 +24,6 @@ export type {
     RewardLimits,
     RewardList,
     SaveResult,
+    StreamingSoftwareState,
     TestRunStarted
 } from "./models.js";

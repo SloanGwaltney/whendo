@@ -10,4 +10,29 @@ export interface Settings {
      * kept for.
      */
     "runHistoryRetentionDays": number;
+
+    /**
+     * StreamingSoftware is the program Whendo connects to for the show and
+     * hide steps.
+     */
+    "streamingSoftware": StreamingSoftware;
 }
+
+/**
+ * StreamingSoftware is the program the streamer streams with, which the
+ * show and hide steps act on. See docs/design/streaming-software.md.
+ */
+export enum StreamingSoftware {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    /**
+     * StreamingSoftwareNone means Whendo doesn't connect to any streaming
+     * software. It's the default, so streamers who don't need it are never
+     * nagged about a connection.
+     */
+    StreamingSoftwareNone = "none",
+    StreamingSoftwareStreamlabsDesktop = "streamlabsDesktop",
+};

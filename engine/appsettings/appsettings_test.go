@@ -40,7 +40,7 @@ func TestLoad_ReturnsDefaultsWhenThereIsNoFile(t *testing.T) {
 
 func TestSave_SettingsAreLoadedBack(t *testing.T) {
 	store, _ := newStore(t)
-	saved := appsettings.Settings{RunHistoryRetentionDays: 7}
+	saved := appsettings.Settings{RunHistoryRetentionDays: 7, StreamingSoftware: appsettings.StreamingSoftwareStreamlabsDesktop}
 
 	err := store.Save(saved)
 	if err != nil {
@@ -57,7 +57,7 @@ func TestSave_RefusesRetentionOutsideTheRange(t *testing.T) {
 	for _, retentionDays := range []int{0, appsettings.MaximumRunHistoryRetentionDays + 1} {
 		store, filePath := newStore(t)
 
-		err := store.Save(appsettings.Settings{RunHistoryRetentionDays: retentionDays})
+		err := store.Save(appsettings.Settings{RunHistoryRetentionDays: retentionDays, StreamingSoftware: appsettings.StreamingSoftwareNone})
 
 		if !errors.Is(err, appsettings.ErrRetentionOutOfRange) {
 			t.Errorf("saving %d days gave error %v, want ErrRetentionOutOfRange", retentionDays, err)
@@ -65,6 +65,29 @@ func TestSave_RefusesRetentionOutsideTheRange(t *testing.T) {
 		if _, statErr := os.Stat(filePath); !errors.Is(statErr, os.ErrNotExist) {
 			t.Errorf("saving %d days wrote the file anyway", retentionDays)
 		}
+	}
+}
+
+func TestSave_RefusesUnknownStreamingSoftware(t *testing.T) {
+	store, _ := newStore(t)
+	settings := appsettings.Defaults()
+	settings.StreamingSoftware = "someOtherProgram"
+
+	err := store.Save(settings)
+
+	if !errors.Is(err, appsettings.ErrUnknownStreamingSoftware) {
+		t.Errorf("got error %v, want ErrUnknownStreamingSoftware", err)
+	}
+}
+
+func TestLoad_ChoosesNoStreamingSoftwareForFilesWrittenBeforeTheChoiceExisted(t *testing.T) {
+	store, filePath := newStore(t)
+	writeFileOrFail(t, filePath, `{"formatVersion": 1, "runHistoryRetentionDays": 7}`)
+
+	settings, err := store.Load()
+
+	if err != nil || settings.StreamingSoftware != appsettings.StreamingSoftwareNone || settings.RunHistoryRetentionDays != 7 {
+		t.Errorf("got %+v, error %v; want 7 days and no streaming software", settings, err)
 	}
 }
 

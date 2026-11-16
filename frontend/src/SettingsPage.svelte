@@ -1,7 +1,15 @@
 <script lang="ts">
   import {SettingsService, TwitchLoginService} from "../bindings/github.com/SloanGwaltney/whendo";
   import type {RetentionLimits} from "../bindings/github.com/SloanGwaltney/whendo";
+  import type {StreamingSoftware} from "../bindings/github.com/SloanGwaltney/whendo/engine/appsettings";
   import Page from "./Page.svelte";
+  import {
+    chooseStreamingSoftware,
+    isStreamingSoftwareChosen,
+    isStreamingSoftwareConnected,
+    streamingSoftwareChoices,
+    streamingSoftwareState,
+  } from "./streamingSoftware.svelte";
 
   let {accountLogin}: {accountLogin: string} = $props();
 
@@ -14,6 +22,10 @@
   let retentionLimits = $state<RetentionLimits | null>(null);
   let retentionMessage = $state("");
   let isRetentionMessageAnError = $state(false);
+
+  let streamingSoftwareErrorMessage = $state("");
+  const isStreamingSoftwareChosenNow = $derived(isStreamingSoftwareChosen(streamingSoftwareState.current));
+  const isStreamingSoftwareConnectedNow = $derived(isStreamingSoftwareConnected(streamingSoftwareState.current));
 
   loadSettings();
 
@@ -53,6 +65,17 @@
     }
   }
 
+  async function chooseSoftware(select: HTMLSelectElement): Promise<void> {
+    streamingSoftwareErrorMessage = "";
+    try {
+      await chooseStreamingSoftware(select.value as StreamingSoftware);
+    } catch (error) {
+      streamingSoftwareErrorMessage = `Couldn't save: ${error}`;
+      // The choice wasn't saved, so the list goes back to the one that was.
+      select.value = streamingSoftwareState.current?.software ?? "";
+    }
+  }
+
   async function logOut(): Promise<void> {
     logoutErrorMessage = "";
     try {
@@ -63,7 +86,7 @@
   }
 </script>
 
-<!-- OBS, audio and the theme join these here as they're built. See
+<!-- Audio and the theme join these here as they're built. See
      docs/design/mvp-ui.md#settings. -->
 <Page title="Settings">
   <section class="setting-group">
@@ -74,6 +97,37 @@
     </div>
     {#if logoutErrorMessage}
       <p class="error is-selectable" role="alert">Logged out, but something went wrong: {logoutErrorMessage}</p>
+    {/if}
+  </section>
+
+  <section class="setting-group">
+    <h2>Streaming software</h2>
+    <div class="setting-row">
+      <label for="streaming-software">I stream with</label>
+      <select
+        id="streaming-software"
+        class="field"
+        value={streamingSoftwareState.current?.software}
+        disabled={!streamingSoftwareState.current}
+        onchange={(event) => chooseSoftware(event.currentTarget)}
+      >
+        {#each streamingSoftwareChoices as choice (choice.software)}
+          <option value={choice.software}>{choice.label}</option>
+        {/each}
+      </select>
+    </div>
+    {#if !isStreamingSoftwareChosenNow}
+      <p class="hint">Choose the program you stream with, so automations can show and hide its sources.</p>
+    {:else if isStreamingSoftwareConnectedNow}
+      <p class="hint" role="status">Connected to Streamlabs Desktop.</p>
+    {:else}
+      <p class="hint" role="status">Waiting for Streamlabs Desktop. Is it open on this PC?</p>
+    {/if}
+    {#if isStreamingSoftwareChosenNow}
+      <p class="hint">There's nothing to set up in Streamlabs. Whendo finds it on this PC by itself.</p>
+    {/if}
+    {#if streamingSoftwareErrorMessage}
+      <p class="error is-selectable" role="alert">{streamingSoftwareErrorMessage}</p>
     {/if}
   </section>
 

@@ -16,6 +16,7 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/credentials"
 	"github.com/SloanGwaltney/whendo/engine/runhistory"
 	"github.com/SloanGwaltney/whendo/engine/runner"
+	"github.com/SloanGwaltney/whendo/engine/streamlabs"
 	"github.com/SloanGwaltney/whendo/engine/trigger"
 	"github.com/SloanGwaltney/whendo/engine/twitchapi"
 	"github.com/SloanGwaltney/whendo/engine/twitchauth"
@@ -37,6 +38,7 @@ func init() {
 	application.RegisterEvent[twitchauth.LoginState](twitchLoginStateChangedEvent)
 	application.RegisterEvent[twitcheventsub.ConnectionState](twitchConnectionStateChangedEvent)
 	application.RegisterEvent[runner.RunRecord](runEndedEvent)
+	application.RegisterEvent[StreamingSoftwareState](streamingSoftwareStateChangedEvent)
 }
 
 // main function serves as the application's entry point. It initializes the application, creates a window,
@@ -84,6 +86,9 @@ func main() {
 		},
 		HTTPClient: twitchHTTPClient,
 	})
+	streamingSoftwareService := newStreamingSoftwareService(settingsService, streamlabs.Config{Logger: slog.Default()}, func(state StreamingSoftwareState) {
+		app.Event.Emit(streamingSoftwareStateChangedEvent, state)
+	})
 
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.
@@ -102,6 +107,7 @@ func main() {
 			application.NewService(automationsService),
 			application.NewService(&TwitchEventsService{listener: twitchListener}),
 			application.NewService(settingsService),
+			application.NewService(streamingSoftwareService),
 			application.NewService(&RewardsService{
 				source:            newRewardSource(twitchClient),
 				known:             knownRewards,

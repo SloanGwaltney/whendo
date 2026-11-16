@@ -25,7 +25,7 @@ Each item carries whatever its program needs to find it again, so the steps neve
 The Settings page has a **Streaming software** section with one choice: **None** or **Streamlabs Desktop**. OBS joins the list when it's supported.
 
 - **None is the default.** Streamers who only use chat and sound steps never see a connection status or a nag. Whendo doesn't try to connect to anything until a program is chosen.
-- **Choosing Streamlabs Desktop is all the setup there is.** Whendo connects without a token or password; see [Streamlabs Desktop](streamlabs-desktop.md#connecting). The section shows the connection status under the choice.
+- **Choosing Streamlabs Desktop is all the setup there is.** Whendo connects without a token or password; see [Streamlabs Desktop](streamlabs-desktop.md#connecting). The section shows the connection status under the choice, and says there's nothing to set up in Streamlabs, since streamers used to other tools may look for a token.
 - **Choosing a program connects straight away,** and choosing None disconnects.
 
 ## Connection Status
@@ -35,7 +35,7 @@ When a program is chosen, the navigation shows its status under Twitch's, named 
 | State | Shown as |
 |---|---|
 | Connected | "Streamlabs: connected" |
-| Waiting | "Streamlabs: waiting…", with "Is Streamlabs Desktop open?" on hover or click |
+| Waiting | "Streamlabs: waiting… Is Streamlabs Desktop open?" |
 
 - **Waiting covers every failure to connect,** most often the program not being open yet. Each program's connection can add states of its own, such as OBS's wrong password.
 - **No separate offline state,** for the same reason as Twitch: until it connects, the steps fail, and that's all the streamer needs to know.

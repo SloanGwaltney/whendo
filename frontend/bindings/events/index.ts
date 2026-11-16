@@ -14,6 +14,11 @@ import "../github.com/wailsapp/wails/v3/internal/eventcreate.js";
 export const RunEnded = "run-ended";
 
 /**
+ * Name of the custom event "streaming-software-state-changed".
+ */
+export const StreamingSoftwareStateChanged = "streaming-software-state-changed";
+
+/**
  * Name of the custom event "twitch-connection-state-changed".
  */
 export const TwitchConnectionStateChanged = "twitch-connection-state-changed";
