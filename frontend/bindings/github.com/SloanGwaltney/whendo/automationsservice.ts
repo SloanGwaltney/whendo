@@ -24,6 +24,14 @@ import * as runner$0 from "./engine/runner/models.js";
 import * as $models from "./models.js";
 
 /**
+ * AutomationsUsingReward returns the names of the automations whose trigger
+ * is the given redeem, sorted, so deleting a redeem can say what it affects.
+ */
+export function AutomationsUsingReward(rewardID: string): $CancellablePromise<string[] | null> {
+    return $Call.ByID(702700490, rewardID);
+}
+
+/**
  * Catalog returns every trigger and step, for the designer to offer.
  */
 export function Catalog(): $CancellablePromise<$models.CatalogDefinitions> {

@@ -1,8 +1,12 @@
 <script lang="ts">
   import type {Reward} from "../bindings/github.com/SloanGwaltney/whendo/engine/twitchrewards";
 
-  // One redeem on the Redeems page, read only for now.
-  let {reward}: {reward: Reward} = $props();
+  // One redeem on the Redeems page. Only redeems Whendo made get actions,
+  // since Twitch doesn't let Whendo change any other.
+  let {reward, actions}: {
+    reward: Reward;
+    actions?: {onEdit: () => void; onTogglePause: () => void; onDelete: () => void};
+  } = $props();
 
   const secondsPerMinute = 60;
   const secondsPerHour = 60 * secondsPerMinute;
@@ -67,6 +71,15 @@
       {/each}
     </div>
   </div>
+  {#if actions}
+    <div class="controls">
+      <!-- Pausing is here rather than in the form, since it's what a
+           streamer reaches for mid-stream. -->
+      <button type="button" class="button" onclick={actions.onTogglePause}>{reward.isPaused ? "Resume" : "Pause"}</button>
+      <button type="button" class="button" onclick={actions.onEdit}>Edit</button>
+      <button type="button" class="button" onclick={actions.onDelete}>Delete</button>
+    </div>
+  {/if}
 </li>
 
 <style>
@@ -77,6 +90,12 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-large);
     background: var(--color-surface);
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .swatch {

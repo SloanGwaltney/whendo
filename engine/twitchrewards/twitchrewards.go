@@ -42,12 +42,30 @@ type Reward struct {
 	IsMadeByWhendo bool `json:"isMadeByWhendo"`
 }
 
-// Source is where rewards come from.
+// Source is where rewards come from. Only rewards Whendo made can be
+// changed; changing any other returns ErrNotMadeByWhendo.
 type Source interface {
 	// List returns every reward the account has, cheapest first. It returns
 	// ErrNoChannelPoints for an account that can't have rewards.
 	List(ctx context.Context) ([]Reward, error)
+	// Create makes a new reward, which Whendo can then change.
+	Create(ctx context.Context, settings Settings) (Reward, error)
+	// Update replaces a reward's settings. A blank prompt keeps the old one,
+	// since Twitch can't clear it.
+	Update(ctx context.Context, rewardID string, settings Settings) (Reward, error)
+	// SetPaused pauses or resumes a reward. Viewers still see a paused
+	// reward, but can't redeem it.
+	SetPaused(ctx context.Context, rewardID string, isPaused bool) (Reward, error)
+	// Delete removes a reward. Twitch fulfills its redemptions still waiting
+	// in the request queue, so they can't be refunded.
+	Delete(ctx context.Context, rewardID string) error
 }
+
+// Both sources must stay usable wherever a Source is.
+var (
+	_ Source = (*TwitchSource)(nil)
+	_ Source = (*FakeSource)(nil)
+)
 
 // sortForShowing orders rewards the way Twitch shows them to viewers:
 // cheapest first, then by title.

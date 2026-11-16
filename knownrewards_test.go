@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/SloanGwaltney/whendo/engine/automation"
@@ -148,5 +149,19 @@ func TestListAutomations_NotesPlaceholderAndMissingRedeems(t *testing.T) {
 	}
 	if summaries["existing"].TriggerNote != "" {
 		t.Errorf("got note %q for a redeem that exists", summaries["existing"].TriggerNote)
+	}
+}
+
+func TestAutomationsUsingReward_NamesOnlyAutomationsOnThatRedeem(t *testing.T) {
+	fixture := newServiceFixture(t, nil)
+	fixture.save(redeemAutomation(t, "second", existingRewardID))
+	fixture.save(redeemAutomation(t, "first", existingRewardID))
+	fixture.save(redeemAutomation(t, "other", deletedRewardID))
+	fixture.save(chatAutomation(t, "chat", "Chat"))
+
+	names := fixture.service.AutomationsUsingReward(existingRewardID)
+
+	if !slices.Equal(names, []string{"Redeem first", "Redeem second"}) {
+		t.Errorf("got %v, want the two automations on the redeem, sorted", names)
 	}
 }

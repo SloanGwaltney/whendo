@@ -38,3 +38,50 @@ func (service *RewardsService) ListRewards(ctx context.Context) (RewardList, err
 	service.known.remember(rewards)
 	return RewardList{HasChannelPoints: true, Rewards: rewards}, nil
 }
+
+// RewardLimits are Twitch's limits on a redeem, so the Redeems page can say
+// what's allowed before asking Twitch.
+type RewardLimits struct {
+	MaximumTitleLength       int   `json:"maximumTitleLength"`
+	MinimumCost              int64 `json:"minimumCost"`
+	MaximumCost              int64 `json:"maximumCost"`
+	MaximumRewardsPerChannel int   `json:"maximumRewardsPerChannel"`
+}
+
+// Limits returns Twitch's limits on a redeem.
+func (service *RewardsService) Limits() RewardLimits {
+	return RewardLimits{
+		MaximumTitleLength:       twitchrewards.MaximumTitleLength,
+		MinimumCost:              twitchrewards.MinimumCost,
+		MaximumCost:              twitchrewards.MaximumCost,
+		MaximumRewardsPerChannel: twitchrewards.MaximumRewardsPerChannel,
+	}
+}
+
+// NewRewardSettings returns the settings a new redeem starts with.
+func (service *RewardsService) NewRewardSettings() twitchrewards.Settings {
+	return twitchrewards.NewSettings()
+}
+
+// CreateReward makes a new redeem in Twitch, which Whendo can then edit. The
+// Redeems page reloads the list afterwards, which also updates what missing
+// redeems are checked against.
+func (service *RewardsService) CreateReward(ctx context.Context, settings twitchrewards.Settings) (twitchrewards.Reward, error) {
+	return service.source.Create(ctx, settings)
+}
+
+// UpdateReward changes a redeem Whendo made.
+func (service *RewardsService) UpdateReward(ctx context.Context, rewardID string, settings twitchrewards.Settings) (twitchrewards.Reward, error) {
+	return service.source.Update(ctx, rewardID, settings)
+}
+
+// SetRewardPaused pauses or resumes a redeem Whendo made.
+func (service *RewardsService) SetRewardPaused(ctx context.Context, rewardID string, isPaused bool) (twitchrewards.Reward, error) {
+	return service.source.SetPaused(ctx, rewardID, isPaused)
+}
+
+// DeleteReward deletes a redeem Whendo made. Automations that use it are
+// left as they are, and get a missing redeem problem.
+func (service *RewardsService) DeleteReward(ctx context.Context, rewardID string) error {
+	return service.source.Delete(ctx, rewardID)
+}

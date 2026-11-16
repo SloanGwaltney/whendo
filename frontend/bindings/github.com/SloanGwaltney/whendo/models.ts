@@ -53,6 +53,17 @@ export interface RetentionLimits {
 }
 
 /**
+ * RewardLimits are Twitch's limits on a redeem, so the Redeems page can say
+ * what's allowed before asking Twitch.
+ */
+export interface RewardLimits {
+    "maximumTitleLength": number;
+    "minimumCost": number;
+    "maximumCost": number;
+    "maximumRewardsPerChannel": number;
+}
+
+/**
  * RewardList is the account's channel point rewards, or that it has none to
  * have. An account without channel points isn't an error, since the Redeems
  * page and the redeem picker explain it rather than fail.

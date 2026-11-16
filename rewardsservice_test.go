@@ -8,8 +8,11 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/twitchrewards"
 )
 
-// fixedRewardSource returns the same answer every time.
+// fixedRewardSource lists the same answer every time. Tests that change
+// rewards use the fake source instead; the embedded Source is nil, so
+// calling anything else fails the test loudly.
 type fixedRewardSource struct {
+	twitchrewards.Source
 	rewards []twitchrewards.Reward
 	err     error
 }

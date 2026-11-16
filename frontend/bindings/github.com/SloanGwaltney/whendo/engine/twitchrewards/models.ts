@@ -40,3 +40,25 @@ export interface Reward {
      */
     "isMadeByWhendo": boolean;
 }
+
+/**
+ * Settings are the parts of a reward the Redeems page edits. Limits of zero
+ * are turned off. Pausing is separate, since it's done from the redeem's row
+ * rather than the form.
+ */
+export interface Settings {
+    "title": string;
+    "prompt": string;
+    "cost": number;
+
+    /**
+     * BackgroundColor is empty to let Twitch pick one when creating.
+     */
+    "backgroundColor": string;
+    "isShownToViewers": boolean;
+    "isUserInputRequired": boolean;
+    "canBeRefunded": boolean;
+    "maximumPerStream": number;
+    "maximumPerViewerPerStream": number;
+    "cooldownSeconds": number;
+}

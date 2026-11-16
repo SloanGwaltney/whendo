@@ -13,11 +13,60 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as twitchrewards$0 from "./engine/twitchrewards/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
+
+/**
+ * CreateReward makes a new redeem in Twitch, which Whendo can then edit. The
+ * Redeems page reloads the list afterwards, which also updates what missing
+ * redeems are checked against.
+ */
+export function CreateReward(settings: twitchrewards$0.Settings): $CancellablePromise<twitchrewards$0.Reward> {
+    return $Call.ByID(1149844442, settings);
+}
+
+/**
+ * DeleteReward deletes a redeem Whendo made. Automations that use it are
+ * left as they are, and get a missing redeem problem.
+ */
+export function DeleteReward(rewardID: string): $CancellablePromise<void> {
+    return $Call.ByID(2712884013, rewardID);
+}
+
+/**
+ * Limits returns Twitch's limits on a redeem.
+ */
+export function Limits(): $CancellablePromise<$models.RewardLimits> {
+    return $Call.ByID(3103401005);
+}
 
 /**
  * ListRewards returns every reward the account has, cheapest first.
  */
 export function ListRewards(): $CancellablePromise<$models.RewardList> {
     return $Call.ByID(3193094911);
+}
+
+/**
+ * NewRewardSettings returns the settings a new redeem starts with.
+ */
+export function NewRewardSettings(): $CancellablePromise<twitchrewards$0.Settings> {
+    return $Call.ByID(1904100947);
+}
+
+/**
+ * SetRewardPaused pauses or resumes a redeem Whendo made.
+ */
+export function SetRewardPaused(rewardID: string, isPaused: boolean): $CancellablePromise<twitchrewards$0.Reward> {
+    return $Call.ByID(3113739302, rewardID, isPaused);
+}
+
+/**
+ * UpdateReward changes a redeem Whendo made.
+ */
+export function UpdateReward(rewardID: string, settings: twitchrewards$0.Settings): $CancellablePromise<twitchrewards$0.Reward> {
+    return $Call.ByID(3459053931, rewardID, settings);
 }

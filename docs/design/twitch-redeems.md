@@ -58,7 +58,7 @@ Twitch's request queue is a list in the streamer's Twitch dashboard, not anythin
 ### Editing
 [Update Custom Reward](https://dev.twitch.tv/docs/api/reference/channel-points#update-custom-reward): `PATCH /helix/channel_points/custom_rewards?broadcaster_id=<streamer>&id=<reward>`.
 
-- **Every limit is sent as a pair.** Twitch sets a limit's other field to off or 0 when only one of its pair is sent, so Whendo always sends both fields of every limit, never one.
+- **Every limit is sent every time.** Twitch turns off a limit it isn't sent, so leaving one out would quietly turn it off. A limit that's on sends both its switch and its value; one that's off sends its switch alone, since a value of 0 isn't valid.
 - **Pausing** (`is_paused`) is available from the redeem's row rather than the form, since it's what a streamer reaches for mid-stream: viewers still see the redeem, but can't redeem it.
 - **A blank description can't be saved.** Twitch keeps the old prompt when it's sent an empty one, so clearing it would look saved without being saved. The form doesn't allow it.
 

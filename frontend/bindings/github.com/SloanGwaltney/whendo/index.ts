@@ -18,6 +18,7 @@ export type {
     AutomationSummary,
     CatalogDefinitions,
     RetentionLimits,
+    RewardLimits,
     RewardList,
     SaveResult,
     TestRunStarted

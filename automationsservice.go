@@ -17,6 +17,7 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/runner"
 	"github.com/SloanGwaltney/whendo/engine/step"
 	"github.com/SloanGwaltney/whendo/engine/trigger"
+	"github.com/SloanGwaltney/whendo/engine/twitcheventsub"
 )
 
 // runEndedEvent carries a runner.RunRecord each time a run ends, so run
@@ -241,6 +242,27 @@ func insertAfterTriggerProblems(problems []automation.Problem, triggerProblem au
 		}
 	}
 	return slices.Insert(problems, insertIndex, triggerProblem)
+}
+
+// AutomationsUsingReward returns the names of the automations whose trigger
+// is the given redeem, sorted, so deleting a redeem can say what it affects.
+func (service *AutomationsService) AutomationsUsingReward(rewardID string) []string {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	names := []string{}
+	for _, savedAutomation := range service.automationsByID {
+		if savedAutomation.Trigger.ID != twitcheventsub.RedeemTriggerID {
+			continue
+		}
+		usedRewardID, err := savedAutomation.Trigger.Settings.Text(twitcheventsub.RewardSetting)
+		if err == nil && usedRewardID == rewardID {
+			names = append(names, savedAutomation.Name)
+		}
+	}
+	slices.SortFunc(names, func(first string, second string) int {
+		return cmp.Compare(strings.ToLower(first), strings.ToLower(second))
+	})
+	return names
 }
 
 // GetAutomation returns one saved automation.
