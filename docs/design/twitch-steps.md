@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Last updated:** 2026-11-16
 
-The steps that act on Twitch: sending a chat message, refunding and fulfilling redemptions, and later waiting for a chat message. For the step contract they follow, see [Automation Engine](automation-engine.md#steps). For the login they act as, see [Twitch Login](twitch-login.md).
+The steps that act on Twitch: sending a chat message, waiting for a chat message, and refunding and fulfilling redemptions. For the step contract they follow, see [Automation Engine](automation-engine.md#steps). For the login they act as, see [Twitch Login](twitch-login.md).
 
 ## Acting as the Streamer
 
@@ -29,6 +29,59 @@ The steps that act on Twitch: sending a chat message, refunding and fulfilling r
 | HTTP 403 | The streamer's account can't chat in the channel right now. |
 | HTTP 429 | The chat rate limit was reached. Retrying could pile up messages, so the step fails. |
 | Any other error | Twitch's message is recorded. |
+
+## Wait for a Chat Message
+
+`twitch.waitForChatMessage` waits for a chat message that starts with one of a list of choices, such as `!a1`, `!a2` and `!a3`, and splits the automation with one path per choice plus one for running out of time. It's what lets Do a Voice ask the redeemer to pick a voice. It reads:
+
+> Wait up to *2 minutes* for *the person who started this* to type *!a1, !a2 or !a3*
+
+| Setting | Kind | Notes |
+|---|---|---|
+| How long | Duration | Required. More than zero and at most 5 minutes; see [Time Limit](#time-limit). |
+| From | Option | "the person who started this" or "anyone". New steps start on "the person who started this", since that's what a "pick one" prompt almost always wants. |
+| Choices | Choice list | Required. At least one; blank and repeated choices are already must-fix. |
+
+### Who Can Answer
+- **No IDs to pick.** Rather than a user ID variable, the step offers "the person who started this" or "anyone". Picking the right ID from a list of variables would mean nothing to most streamers, the same reason [refund and fulfill](#refund-and-fulfill) take no settings.
+- **Each trigger says who started it.** A trigger definition can name the variable holding the user ID of the person behind its event: the redeemer for a redeem, the sender for a chat message and the follower for a follow. The engine passes that ID to the step as part of its input, so the step never knows which trigger it follows.
+- **A trigger without a person** can't be used with "the person who started this". That's a must-fix problem: "“Wait for a chat message” can't wait for the person who started this, because “…” isn't started by a person." All three MVP triggers have one, so this only guards future triggers.
+- **Messages from anyone else are ignored,** and the step keeps waiting.
+
+### Matching
+- **Choices match like the chat message trigger:** the message must start with the choice as a whole word, ignoring capitalization, so `!a1` matches "!a1 please" but not "!a10". See [Twitch EventSub](twitch-eventsub.md#chat-messages). The trigger's matching function is shared rather than copied, so the two can't drift apart.
+- **Only the streamer's own chat counts,** since shared chat messages from other channels never become events.
+- **The first match wins.** Messages that match no choice are ignored. If a message could match two choices, which can only happen when one choice starts with another followed by a space, such as `!a` and `!a 1`, the earlier choice in the list wins.
+- **Only messages sent after the step starts count.** The step subscribes to chat message events when it starts and unsubscribes when it ends; see [Steps That Wait for Events](automation-engine.md#steps-that-wait-for-events).
+- **A message can do both.** An answer that also starts another automation's chat message trigger does both, as the engine design already says.
+- **The streamer's own messages count,** which is how test runs work: the test form starts the redeemer as the streamer, and the streamer types the answer in their own chat.
+
+### Outcomes
+- **One per choice,** with the choice's ID as the outcome ID, so editing a choice's text keeps its path. Its branch reads "If they type `!a1`" for "the person who started this", or "If someone types `!a1`" for "anyone".
+- **Timed out,** with the ID `timedOut`, reads "If they don't answer in time" or "If no one answers in time". A choice whose ID is `timedOut` is a must-fix problem. The designer never makes one, so only a hand-edited file could.
+- **Each choice's path provides the answer:** the sender's name, the message and the rest of the message after the choice, which are common, and the sender's login name, user ID and message ID. They use the same IDs and names as the chat message trigger's variables. "Timed out" provides nothing, so in Do a Voice the answer is available after the split only if "timed out" ends the automation, which it does.
+- **Run history** records which path the step took, as for every step that splits, and the answer's values as for any step's variables.
+
+### Time Limit
+- **At most 5 minutes.** An automation runs one run at a time, so while this step waits, later runs of the same automation wait behind it. A cap stops a slip, such as 2 hours instead of 2 minutes, from holding up every later redeem. Over the cap is a must-fix problem: "“Wait for a chat message” can wait at most 5 minutes." A duration setting can now declare a maximum, like a text setting's maximum length, and the designer's duration editor won't go past it.
+- **Revisit later, not in the MVP:** whether a waiting run should hold up its automation's queue at all, or step aside so later runs can start. See [Running and Queuing](automation-engine.md#runs-and-queues).
+- **Losing the connection to Twitch while waiting** isn't a failure. No messages arrive, so the step times out as if no one answered. Run history then shows "timed out" during a time the connection status shows as down.
+- **Shutting down** stops the wait at once, like the wait step.
+
+### Designer
+- **The choice list gets its editor,** which the designer has been waiting on since choice lists were added. Each choice is a text field with a remove button, plus an "Add a choice" button. The designer makes each new choice's ID, as for step IDs.
+- **Adding a choice adds a path,** and removing one removes its path if it's empty, using the existing branch reconciling. A path that still has steps stays, with a must-fix problem, so steps are never lost silently.
+
+### Failures
+The step has no failures of its own beyond its settings. Running out of time is an outcome, not a failure, because what to do then is the streamer's choice, such as refunding in Do a Voice.
+
+### First Slice
+1. Triggers name their person, and the engine passes the person's user ID to steps.
+2. A maximum for duration settings, with its problem.
+3. Share the chat message trigger's matching function.
+4. The step itself: settings, outcomes with their sentences and variables, and running it.
+5. The choice list editor, and the duration editor's maximum.
+6. Build Do a Voice in the designer and test it from end to end, typing the answer in chat.
 
 ## Refund and Fulfill
 

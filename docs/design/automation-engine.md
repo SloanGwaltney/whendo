@@ -29,9 +29,9 @@ Triggers and steps both need settings, such as which reward a redeem trigger use
 | `text` | Plain text | Chat message trigger's "starts with" |
 | `template` | Text with variables inserted; see [Templates](#templates) | Send a chat message |
 | `wholeNumber` | An integer | Random number's lowest and highest |
-| `duration` | A length of time, stored in milliseconds | Wait, wait for a chat message |
-| `variable` | A reference to one variable | Check a condition, "only from" |
-| `option` | One of a fixed list the definition provides | Check a condition's comparison |
+| `duration` | A length of time, stored in milliseconds, with an optional maximum | Wait, wait for a chat message |
+| `variable` | A reference to one variable | Check a condition |
+| `option` | One of a fixed list the definition provides | Check a condition's comparison, wait for a chat message's "from" |
 | `choiceList` | A list of texts, each with a stable ID | Wait for a chat message's choices |
 | `twitch.reward` | A channel point reward ID | Redeem trigger |
 
@@ -43,6 +43,7 @@ Triggers and steps both need settings, such as which reward a redeem trigger use
 - **Redeem:** one setting, the reward. It matches when the event's reward ID equals it.
 - **Chat message:** one setting, the text the message must start with. It matches using the rules in [Twitch EventSub](twitch-eventsub.md#chat-messages) and adds the rest of the message.
 - **Follow:** no settings. Every follow matches.
+- **The person who started it:** a trigger can name the variable holding the user ID of the person behind its event, such as the redeemer. The engine passes that ID to every step in the run, so "wait for a chat message" can wait for that person without knowing which trigger it follows. See [Twitch Steps](twitch-steps.md#who-can-answer).
 - **Filters live with the integration,** next to its triggers, for the same reason the triggers do: the engine doesn't know what a reward is.
 
 ## Steps
@@ -64,7 +65,7 @@ Steps provide variables through their outcomes. "Roll a random number" has one o
 Steps that let users create and set their own variables aren't part of the MVP.
 
 ### Steps That Wait for Events
-A step can **subscribe** to events, the same way a trigger receives them. "Wait for a chat message" subscribes to chat message events when it starts, checks each one against its choices and its "only from" setting, and unsubscribes when it finishes or times out.
+A step can **subscribe** to events, the same way a trigger receives them. "Wait for a chat message" subscribes to chat message events when it starts, checks each one against its choices and who it's waiting for, and unsubscribes when it finishes or times out.
 
 - **Subscriptions are in the engine, not the listener.** Every integration already delivers its events to the engine, so this is one place to subscribe that works for any integration, and the step never touches the Twitch connection.
 - **An event can do both.** A chat message that answers a waiting step can also match another automation's trigger. Both happen. Deciding which one "wins" would be surprising either way, and a user who builds that overlap can see it in run history.
@@ -120,6 +121,8 @@ If a reference points to a variable that isn't available, for example because th
 - **A run already in progress finishes.** Stopping one partway through could leave things half done, like an OBS source that's shown but never hidden in Head Pets.
 - **Deleting an automation** does the same as disabling it, then removes it.
 - **Shutting down stops runs in progress.** A waiting step stops right away, so quitting partway through Head Pets leaves the source showing. That's accepted: avoiding it would mean steps that undo themselves, which is a lot of work for a rare case the streamer can fix by hand.
+
+**Later, not in the MVP:** a step that waits, such as "wait for a chat message," holds up its automation's queue for as long as it waits, which is why that step is capped at 5 minutes. Revisit whether this model still holds up with waits, and in particular whether a waiting run should step aside so later runs can start.
 
 ### Editing
 **Edits apply right away.** A run uses the automation as it is when the run **starts**, so queued runs pick up an edit and the run in progress doesn't. A streamer who doesn't want an automation firing while they edit it disables it first.
