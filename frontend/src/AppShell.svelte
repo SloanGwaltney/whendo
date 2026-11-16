@@ -4,7 +4,7 @@
   import DesignerPage from "./designer/DesignerPage.svelte";
   import Dialog from "./Dialog.svelte";
   import HomePage from "./HomePage.svelte";
-  import PlaceholderPage from "./PlaceholderPage.svelte";
+  import RedeemsPage from "./RedeemsPage.svelte";
   import RunHistoryPage from "./RunHistoryPage.svelte";
   import SettingsPage from "./SettingsPage.svelte";
   import Sidebar from "./Sidebar.svelte";
@@ -48,7 +48,7 @@
     {:else if currentPageId === "home"}
       <HomePage onOpenAutomation={(automationID) => (openAutomationID = automationID)}/>
     {:else if currentPageId === "redeems"}
-      <PlaceholderPage title="Redeems" futureContents="Your channel point redeems will be here."/>
+      <RedeemsPage/>
     {:else if currentPageId === "runHistory"}
       <RunHistoryPage/>
     {:else}
