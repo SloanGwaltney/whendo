@@ -15,6 +15,8 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/automation"
 	"github.com/SloanGwaltney/whendo/engine/runhistory"
 	"github.com/SloanGwaltney/whendo/engine/runner"
+	"github.com/SloanGwaltney/whendo/engine/step"
+	"github.com/SloanGwaltney/whendo/engine/trigger"
 )
 
 // runEndedEvent carries a runner.RunRecord each time a run ends, so run
@@ -24,6 +26,24 @@ const runEndedEvent = "run-ended"
 // automationFileExtension lets an unreadable file be listed, and deleted, by
 // the ID its name stands for.
 const automationFileExtension = ".json"
+
+// errNeedsFixing means an automation with must-fix problems was asked to
+// turn on or run. See docs/design/mvp-ui.md#problems.
+var errNeedsFixing = errors.New("this automation needs its problems fixed first")
+
+// CatalogDefinitions lists every trigger and step the designer can offer, in
+// the order to list them.
+type CatalogDefinitions struct {
+	Triggers []trigger.Definition `json:"triggers"`
+	Steps    []step.Definition    `json:"steps"`
+}
+
+// SaveResult tells the designer what saving did beyond saving.
+type SaveResult struct {
+	// IsTurnedOffUntilFixed means the automation was on, but has must-fix
+	// problems, so it was saved turned off.
+	IsTurnedOffUntilFixed bool `json:"isTurnedOffUntilFixed"`
+}
 
 // AutomationSummary is one row of the automation list. Problem explains why
 // an automation isn't running, such as a setting that's missing or a file
@@ -78,12 +98,7 @@ func (service *AutomationsService) ServiceStartup(ctx context.Context, options a
 	}
 	service.mutex.Lock()
 	for _, loadedAutomation := range automations {
-		service.automationsByID[loadedAutomation.ID] = loadedAutomation
-		err := service.runner.SetAutomation(loadedAutomation)
-		if err != nil {
-			service.logger.Warn("an automation is invalid and won't run", "automation", loadedAutomation.ID, "error", err)
-			service.problemsByID[loadedAutomation.ID] = err.Error()
-		}
+		service.loadAutomation(loadedAutomation)
 	}
 	for _, failure := range failures {
 		service.logger.Warn("an automation file couldn't be read", "file", failure.FileName, "error", failure.Reason)
@@ -93,6 +108,24 @@ func (service *AutomationsService) ServiceStartup(ctx context.Context, options a
 	// Wails cancels ctx right before shutdown, which stops pruning.
 	go service.runHistoryStore.KeepPruned(ctx, runhistory.DefaultRetentionDays)
 	return nil
+}
+
+// loadAutomation puts a saved automation to work, unless it has must-fix
+// problems. Those are listed with their first problem and never reach the
+// runner.
+func (service *AutomationsService) loadAutomation(loadedAutomation automation.Automation) {
+	service.automationsByID[loadedAutomation.ID] = loadedAutomation
+	problem, hasProblem := automation.Check(loadedAutomation, service.catalog).FirstMustFixProblem()
+	if hasProblem {
+		service.logger.Warn("an automation has problems and won't run", "automation", loadedAutomation.ID, "problem", problem.Message)
+		service.problemsByID[loadedAutomation.ID] = problem.Message
+		return
+	}
+	err := service.runner.SetAutomation(loadedAutomation)
+	if err != nil {
+		service.logger.Error("an automation couldn't be started", "automation", loadedAutomation.ID, "error", err)
+		service.problemsByID[loadedAutomation.ID] = err.Error()
+	}
 }
 
 // ServiceShutdown stops runs in progress and records them, and the queued
@@ -153,21 +186,37 @@ func (service *AutomationsService) NewAutomationID() string {
 	return automation.NewID()
 }
 
-// SaveAutomation saves a new or changed automation and puts it to work right
-// away. An invalid automation is refused, so nothing that can't run is ever
-// saved from the designer.
-func (service *AutomationsService) SaveAutomation(changedAutomation automation.Automation) error {
-	service.mutex.Lock()
-	defer service.mutex.Unlock()
-	return service.saveAutomation(changedAutomation)
+// Catalog returns every trigger and step, for the designer to offer.
+func (service *AutomationsService) Catalog() CatalogDefinitions {
+	return CatalogDefinitions{
+		Triggers: service.catalog.TriggerDefinitions(),
+		Steps:    service.catalog.StepDefinitions(),
+	}
 }
 
-func (service *AutomationsService) saveAutomation(changedAutomation automation.Automation) error {
-	err := automation.Validate(changedAutomation, service.catalog)
-	if err != nil {
-		return err
+// CheckAutomation checks a draft from the designer without saving it, and
+// reports its problems and what each step can use. The designer calls it as
+// the user edits, so the rules live only in the engine.
+func (service *AutomationsService) CheckAutomation(draft automation.Automation) automation.Report {
+	return automation.Check(draft, service.catalog)
+}
+
+// SaveAutomation saves a new or changed automation. A valid one is put to
+// work right away. One with must-fix problems is still saved, so no work in
+// the designer is lost, but it's saved turned off and stays off until it's
+// fixed. See docs/design/automation-engine.md#invalid-automations.
+func (service *AutomationsService) SaveAutomation(changedAutomation automation.Automation) (SaveResult, error) {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	problem, hasProblem := automation.Check(changedAutomation, service.catalog).FirstMustFixProblem()
+	if hasProblem {
+		return service.saveBrokenAutomation(changedAutomation, problem.Message)
 	}
-	err = service.automationStore.Save(changedAutomation)
+	return SaveResult{}, service.saveValidAutomation(changedAutomation)
+}
+
+func (service *AutomationsService) saveValidAutomation(changedAutomation automation.Automation) error {
+	err := service.automationStore.Save(changedAutomation)
 	if err != nil {
 		return err
 	}
@@ -180,8 +229,35 @@ func (service *AutomationsService) saveAutomation(changedAutomation automation.A
 	return nil
 }
 
+// saveBrokenAutomation saves an automation turned off. If the version before
+// it was valid, the runner keeps that version, turned off, rather than
+// dropping it: that cancels its queued runs and lets a run in progress
+// finish, so a fixed version saved later can't start a second run alongside
+// it.
+func (service *AutomationsService) saveBrokenAutomation(brokenAutomation automation.Automation, problemMessage string) (SaveResult, error) {
+	wasTurnedOn := brokenAutomation.IsEnabled
+	brokenAutomation.IsEnabled = false
+	err := service.automationStore.Save(brokenAutomation)
+	if err != nil {
+		return SaveResult{}, err
+	}
+	previousAutomation, hasPrevious := service.automationsByID[brokenAutomation.ID]
+	_, wasPreviousBroken := service.problemsByID[brokenAutomation.ID]
+	service.automationsByID[brokenAutomation.ID] = brokenAutomation
+	service.problemsByID[brokenAutomation.ID] = problemMessage
+	if hasPrevious && !wasPreviousBroken && previousAutomation.IsEnabled {
+		previousAutomation.IsEnabled = false
+		err = service.runner.SetAutomation(previousAutomation)
+		if err != nil {
+			return SaveResult{}, fmt.Errorf("saved automation %q turned off, but couldn't stop its runs: %w", brokenAutomation.ID, err)
+		}
+	}
+	return SaveResult{IsTurnedOffUntilFixed: wasTurnedOn}, nil
+}
+
 // SetAutomationEnabled turns an automation on or off. Turning it off cancels
-// its queued runs; a run in progress finishes.
+// its queued runs; a run in progress finishes. An automation with must-fix
+// problems can't be turned on.
 func (service *AutomationsService) SetAutomationEnabled(automationID string, isEnabled bool) error {
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
@@ -189,8 +265,17 @@ func (service *AutomationsService) SetAutomationEnabled(automationID string, isE
 	if !isFound {
 		return fmt.Errorf("%w: %q", runner.ErrAutomationNotFound, automationID)
 	}
-	savedAutomation.IsEnabled = isEnabled
-	return service.saveAutomation(savedAutomation)
+	problemMessage, isBroken := service.problemsByID[automationID]
+	if !isBroken {
+		savedAutomation.IsEnabled = isEnabled
+		return service.saveValidAutomation(savedAutomation)
+	}
+	if isEnabled {
+		return fmt.Errorf("%w: %s", errNeedsFixing, problemMessage)
+	}
+	// It's already off unless its file was edited by hand; saving makes sure.
+	_, err := service.saveBrokenAutomation(savedAutomation, problemMessage)
+	return err
 }
 
 // DeleteAutomation removes an automation and its file, or the file of one
@@ -214,8 +299,16 @@ func (service *AutomationsService) DeleteAutomation(automationID string) error {
 }
 
 // TestRun runs an automation with made-up trigger values. The steps really
-// happen, the same as for a real event.
+// happen, the same as for a real event. An automation with must-fix problems
+// can't be test run: the runner may still hold its last valid version, and
+// testing that would mislead.
 func (service *AutomationsService) TestRun(automationID string, triggerVariables map[string]string) error {
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	problemMessage, isBroken := service.problemsByID[automationID]
+	if isBroken {
+		return fmt.Errorf("%w: %s", errNeedsFixing, problemMessage)
+	}
 	return service.runner.TestRun(automationID, triggerVariables)
 }
 

@@ -50,8 +50,11 @@ func (sendChatMessageStep) Definition() step.Definition {
 	return step.Definition{
 		ID:          SendChatMessageStepID,
 		DisplayName: "Send a chat message",
+		Description: "Post a message in your chat, from your account.",
+		Group:       chatGroup,
+		Sentence:    automationsetting.Sentence{automationsetting.Words("Say in chat"), automationsetting.Setting(MessageSetting)},
 		Settings: []automationsetting.Definition{
-			{ID: MessageSetting, DisplayName: "Message", Kind: automationsetting.KindTemplate, IsRequired: true},
+			{ID: MessageSetting, DisplayName: "Message", Kind: automationsetting.KindTemplate, IsRequired: true, Placeholder: "write a message", MaximumLength: MaximumChatMessageLength},
 		},
 	}
 }

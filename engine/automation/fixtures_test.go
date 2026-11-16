@@ -17,20 +17,23 @@ import (
 const (
 	redeemTriggerID      = "test.redeem"
 	rewardSettingID      = "reward"
+	rewardPlaceholder    = "pick a reward"
 	redeemerNameVariable = "redeemerName"
 
-	sayStepType       = "test.say"
-	messageSettingID  = "message"
-	rollStepType      = "test.roll"
-	rollVariable      = "roll"
-	checkStepType     = "test.check"
-	checkedSettingID  = "checked"
-	yesOutcomeID      = "yes"
-	noOutcomeID       = "no"
-	waitStepType      = "test.waitForReply"
-	repliedOutcomeID  = "replied"
-	timedOutOutcomeID = "timedOut"
-	replyVariable     = "reply"
+	sayStepType          = "test.say"
+	messageSettingID     = "message"
+	messagePlaceholder   = "write a message"
+	maximumMessageLength = 40
+	rollStepType         = "test.roll"
+	rollVariable         = "roll"
+	checkStepType        = "test.check"
+	checkedSettingID     = "checked"
+	yesOutcomeID         = "yes"
+	noOutcomeID          = "no"
+	waitStepType         = "test.waitForReply"
+	repliedOutcomeID     = "replied"
+	timedOutOutcomeID    = "timedOut"
+	replyVariable        = "reply"
 
 	testAutomationID = "test-automation"
 )
@@ -69,36 +72,47 @@ func newTestCatalog(t *testing.T) *automation.Catalog {
 	triggers := []trigger.Trigger{
 		fakeTrigger{definition: trigger.Definition{
 			ID:       redeemTriggerID,
-			Settings: []automationsetting.Definition{{ID: rewardSettingID, Kind: automationsetting.KindText, IsRequired: true}},
+			Sentence: automationsetting.Sentence{automationsetting.Words("someone redeems"), automationsetting.Setting(rewardSettingID)},
+			Settings: []automationsetting.Definition{{ID: rewardSettingID, Kind: automationsetting.KindText, IsRequired: true, Placeholder: rewardPlaceholder}},
 			Variables: []trigger.VariableDefinition{
-				{ID: redeemerNameVariable, DisplayName: "Redeemer's name"},
+				{ID: redeemerNameVariable, DisplayName: "Redeemer's name", IsCommon: true},
 			},
 		}},
 	}
 	steps := []step.Step{
 		fakeStep{
-			definition: step.Definition{ID: sayStepType, Settings: []automationsetting.Definition{
-				{ID: messageSettingID, Kind: automationsetting.KindTemplate, IsRequired: true},
-			}},
+			definition: step.Definition{
+				ID:          sayStepType,
+				DisplayName: "Say",
+				Sentence:    automationsetting.Sentence{automationsetting.Words("Say"), automationsetting.Setting(messageSettingID)},
+				Settings: []automationsetting.Definition{
+					{ID: messageSettingID, DisplayName: "Message", Kind: automationsetting.KindTemplate, IsRequired: true, Placeholder: messagePlaceholder, MaximumLength: maximumMessageLength},
+				},
+			},
 			outcomes: []step.Outcome{{ID: step.DefaultOutcomeID}},
 		},
 		fakeStep{
-			definition: step.Definition{ID: rollStepType},
+			definition: step.Definition{ID: rollStepType, DisplayName: "Roll"},
 			outcomes: []step.Outcome{{ID: step.DefaultOutcomeID, Variables: []trigger.VariableDefinition{
 				{ID: rollVariable, DisplayName: "Roll"},
 			}}},
 		},
 		fakeStep{
-			definition: step.Definition{ID: checkStepType, Settings: []automationsetting.Definition{
-				{ID: checkedSettingID, Kind: automationsetting.KindVariable, IsRequired: true},
-			}},
-			outcomes: []step.Outcome{{ID: yesOutcomeID}, {ID: noOutcomeID}},
+			definition: step.Definition{
+				ID:          checkStepType,
+				DisplayName: "Check",
+				Sentence:    automationsetting.Sentence{automationsetting.Words("Check"), automationsetting.Setting(checkedSettingID)},
+				Settings: []automationsetting.Definition{
+					{ID: checkedSettingID, DisplayName: "Checked", Kind: automationsetting.KindVariable, IsRequired: true},
+				},
+			},
+			outcomes: []step.Outcome{{ID: yesOutcomeID, DisplayName: "Yes"}, {ID: noOutcomeID, DisplayName: "No"}},
 		},
 		fakeStep{
-			definition: step.Definition{ID: waitStepType},
+			definition: step.Definition{ID: waitStepType, DisplayName: "Wait for a reply"},
 			outcomes: []step.Outcome{
-				{ID: repliedOutcomeID, Variables: []trigger.VariableDefinition{{ID: replyVariable, DisplayName: "Reply"}}},
-				{ID: timedOutOutcomeID},
+				{ID: repliedOutcomeID, DisplayName: "Replied", Variables: []trigger.VariableDefinition{{ID: replyVariable, DisplayName: "Reply"}}},
+				{ID: timedOutOutcomeID, DisplayName: "Timed out"},
 			},
 		},
 	}

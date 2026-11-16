@@ -24,6 +24,22 @@ import * as runner$0 from "./engine/runner/models.js";
 import * as $models from "./models.js";
 
 /**
+ * Catalog returns every trigger and step, for the designer to offer.
+ */
+export function Catalog(): $CancellablePromise<$models.CatalogDefinitions> {
+    return $Call.ByID(391654960);
+}
+
+/**
+ * CheckAutomation checks a draft from the designer without saving it, and
+ * reports its problems and what each step can use. The designer calls it as
+ * the user edits, so the rules live only in the engine.
+ */
+export function CheckAutomation(draft: automation$0.Automation): $CancellablePromise<automation$0.Report> {
+    return $Call.ByID(1056753480, draft);
+}
+
+/**
  * DeleteAutomation removes an automation and its file, or the file of one
  * that couldn't be read.
  */
@@ -69,17 +85,19 @@ export function RunHistoryDays(): $CancellablePromise<string[] | null> {
 }
 
 /**
- * SaveAutomation saves a new or changed automation and puts it to work right
- * away. An invalid automation is refused, so nothing that can't run is ever
- * saved from the designer.
+ * SaveAutomation saves a new or changed automation. A valid one is put to
+ * work right away. One with must-fix problems is still saved, so no work in
+ * the designer is lost, but it's saved turned off and stays off until it's
+ * fixed. See docs/design/automation-engine.md#invalid-automations.
  */
-export function SaveAutomation(changedAutomation: automation$0.Automation): $CancellablePromise<void> {
+export function SaveAutomation(changedAutomation: automation$0.Automation): $CancellablePromise<$models.SaveResult> {
     return $Call.ByID(831149439, changedAutomation);
 }
 
 /**
  * SetAutomationEnabled turns an automation on or off. Turning it off cancels
- * its queued runs; a run in progress finishes.
+ * its queued runs; a run in progress finishes. An automation with must-fix
+ * problems can't be turned on.
  */
 export function SetAutomationEnabled(automationID: string, isEnabled: boolean): $CancellablePromise<void> {
     return $Call.ByID(3096674701, automationID, isEnabled);
@@ -87,7 +105,9 @@ export function SetAutomationEnabled(automationID: string, isEnabled: boolean): 
 
 /**
  * TestRun runs an automation with made-up trigger values. The steps really
- * happen, the same as for a real event.
+ * happen, the same as for a real event. An automation with must-fix problems
+ * can't be test run: the runner may still hold its last valid version, and
+ * testing that would mislead.
  */
 export function TestRun(automationID: string, triggerVariables: { [_ in string]?: string } | null): $CancellablePromise<void> {
     return $Call.ByID(2217577778, automationID, triggerVariables);

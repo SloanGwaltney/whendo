@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/coresteps"
 	"github.com/SloanGwaltney/whendo/engine/runhistory"
 	"github.com/SloanGwaltney/whendo/engine/twitcheventsub"
+	"github.com/SloanGwaltney/whendo/engine/twitchsteps"
 )
 
 const waitMilliseconds = 10
@@ -124,34 +126,159 @@ func TestAutomationsService_ListsSavedAutomationsWithTheirProblems(t *testing.T)
 	}
 }
 
-func TestAutomationsService_SaveRefusesInvalidAndKeepsValid(t *testing.T) {
+func (fixture *serviceFixture) save(savedAutomation automation.Automation) SaveResult {
+	fixture.t.Helper()
+	result, err := fixture.service.SaveAutomation(savedAutomation)
+	if err != nil {
+		fixture.t.Fatalf("SaveAutomation returned an error: %v", err)
+	}
+	return result
+}
+
+func (fixture *serviceFixture) loadFromFolder(automationID string) automation.Automation {
+	fixture.t.Helper()
+	loaded, _, err := automation.NewStore(fixture.automationFolder).LoadAll()
+	if err != nil {
+		fixture.t.Fatalf("LoadAll returned an error: %v", err)
+	}
+	for _, loadedAutomation := range loaded {
+		if loadedAutomation.ID == automationID {
+			return loadedAutomation
+		}
+	}
+	fixture.t.Fatalf("automation %q isn't in the folder", automationID)
+	return automation.Automation{}
+}
+
+func brokenChatAutomation(t *testing.T, automationID string) automation.Automation {
+	t.Helper()
+	broken := chatAutomation(t, automationID, "Broken")
+	broken.Trigger.Settings = automationsetting.Values{}
+	return broken
+}
+
+func TestAutomationsService_SavesBrokenAutomationTurnedOff(t *testing.T) {
 	fixture := newServiceFixture(t, nil)
-	invalid := chatAutomation(t, "invalid", "Invalid")
-	invalid.Name = ""
 
-	invalidErr := fixture.service.SaveAutomation(invalid)
-	validErr := fixture.service.SaveAutomation(chatAutomation(t, "saved", "Saved"))
+	result := fixture.save(brokenChatAutomation(t, "broken"))
 
-	if invalidErr == nil || validErr != nil {
-		t.Fatalf("got errors %v and %v, want only the invalid one refused", invalidErr, validErr)
+	if !result.IsTurnedOffUntilFixed {
+		t.Error("got IsTurnedOffUntilFixed false, want true for an automation that was on")
 	}
-	if _, err := os.Stat(filepath.Join(fixture.automationFolder, "invalid.json")); !os.IsNotExist(err) {
-		t.Error("the invalid automation was written to disk")
+	if fixture.loadFromFolder("broken").IsEnabled {
+		t.Error("the broken automation was saved turned on")
 	}
-	saved, err := fixture.service.GetAutomation("saved")
-	if err != nil || saved.Name != "Saved" {
-		t.Errorf("got %+v, error %v", saved, err)
+	summary := summariesByID(fixture.service.ListAutomations())["broken"]
+	if summary.IsEnabled || summary.Problem == "" {
+		t.Errorf("got summary %+v, want it off with its problem", summary)
+	}
+}
+
+func TestAutomationsService_SavingBrokenAutomationThatWasOffDoesntSayItTurnedOff(t *testing.T) {
+	fixture := newServiceFixture(t, nil)
+	broken := brokenChatAutomation(t, "broken")
+	broken.IsEnabled = false
+
+	result := fixture.save(broken)
+
+	if result.IsTurnedOffUntilFixed {
+		t.Error("got IsTurnedOffUntilFixed true for an automation that was already off")
+	}
+}
+
+func TestAutomationsService_RefusesToTurnOnBrokenAutomation(t *testing.T) {
+	fixture := newServiceFixture(t, nil)
+	fixture.save(brokenChatAutomation(t, "broken"))
+
+	turnOnErr := fixture.service.SetAutomationEnabled("broken", true)
+	turnOffErr := fixture.service.SetAutomationEnabled("broken", false)
+
+	if !errors.Is(turnOnErr, errNeedsFixing) || turnOffErr != nil {
+		t.Errorf("got errors %v and %v, want only turning on refused", turnOnErr, turnOffErr)
+	}
+	if fixture.loadFromFolder("broken").IsEnabled {
+		t.Error("the broken automation was turned on")
+	}
+}
+
+func TestAutomationsService_RefusesToTestRunAutomationThatWasValidThenBroken(t *testing.T) {
+	fixture := newServiceFixture(t, nil)
+	fixture.save(chatAutomation(t, "edited", "Edited"))
+	fixture.save(brokenChatAutomation(t, "edited"))
+
+	err := fixture.service.TestRun("edited", map[string]string{twitcheventsub.MessageTextVariable: "!test"})
+
+	if !errors.Is(err, errNeedsFixing) {
+		t.Errorf("got error %v, want errNeedsFixing", err)
+	}
+}
+
+func TestAutomationsService_FixingBrokenAutomationPutsItToWork(t *testing.T) {
+	fixture := newServiceFixture(t, nil)
+	fixture.save(brokenChatAutomation(t, "fixed"))
+
+	result := fixture.save(chatAutomation(t, "fixed", "Fixed"))
+
+	summary := summariesByID(fixture.service.ListAutomations())["fixed"]
+	if result.IsTurnedOffUntilFixed || summary.Problem != "" || !summary.IsEnabled {
+		t.Errorf("got result %+v and summary %+v, want it on with no problem", result, summary)
+	}
+	if err := fixture.service.SetAutomationEnabled("fixed", true); err != nil {
+		t.Errorf("SetAutomationEnabled returned an error: %v", err)
+	}
+}
+
+func TestAutomationsService_NeverSavesAutomationWithUnsafeID(t *testing.T) {
+	fixture := newServiceFixture(t, nil)
+
+	_, err := fixture.service.SaveAutomation(chatAutomation(t, "../outside", "Outside"))
+
+	if err == nil {
+		t.Fatal("got no error, want the unsafe ID refused")
+	}
+	if _, statErr := os.Stat(filepath.Join(fixture.automationFolder, "..", "outside.json")); !os.IsNotExist(statErr) {
+		t.Error("a file was written outside the automations folder")
+	}
+}
+
+func TestAutomationsService_CheckAutomationReportsProblemsWithoutSaving(t *testing.T) {
+	fixture := newServiceFixture(t, nil)
+
+	report := fixture.service.CheckAutomation(brokenChatAutomation(t, "draft"))
+
+	if !report.HasMustFixProblems() {
+		t.Errorf("got report %+v, want a must-fix problem", report)
+	}
+	if _, isListed := summariesByID(fixture.service.ListAutomations())["draft"]; isListed {
+		t.Error("checking a draft saved it")
+	}
+}
+
+func TestAutomationsService_CatalogListsTriggersAndSteps(t *testing.T) {
+	fixture := newServiceFixture(t, nil)
+
+	catalog := fixture.service.Catalog()
+
+	if len(catalog.Triggers) != len(twitcheventsub.Triggers()) || len(catalog.Steps) != len(coresteps.Steps()) {
+		t.Errorf("got %d triggers and %d steps", len(catalog.Triggers), len(catalog.Steps))
+	}
+}
+
+func TestNewAppCatalog_AcceptsEveryTriggerAndStepDefinition(t *testing.T) {
+	// Building the catalog checks every definition the designer will show,
+	// such as each sentence placing each setting once.
+	_, err := newAppCatalog(twitchsteps.Config{})
+
+	if err != nil {
+		t.Errorf("newAppCatalog returned an error: %v", err)
 	}
 }
 
 func TestAutomationsService_SetAutomationEnabledSavesTheChange(t *testing.T) {
 	fixture := newServiceFixture(t, nil)
-	err := fixture.service.SaveAutomation(chatAutomation(t, "toggled", "Toggled"))
-	if err != nil {
-		t.Fatalf("SaveAutomation returned an error: %v", err)
-	}
+	fixture.save(chatAutomation(t, "toggled", "Toggled"))
 
-	err = fixture.service.SetAutomationEnabled("toggled", false)
+	err := fixture.service.SetAutomationEnabled("toggled", false)
 
 	if err != nil {
 		t.Fatalf("SetAutomationEnabled returned an error: %v", err)

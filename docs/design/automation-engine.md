@@ -182,6 +182,38 @@ An automation is invalid when its file can't be read, it refers to a trigger, st
 
 Saving checks the same rules, but still saves an invalid automation, so unfinished work in the designer is never lost. An invalid automation is always saved turned off, and turning it on is refused until it's valid. Saving an invalid version of an automation that's on turns it off. See [Problems](mvp-ui.md#problems).
 
+- **The ID is the exception.** An automation whose ID isn't safe as a file name is never saved, because its file could end up outside the automations folder.
+- **The runner keeps the last valid version, turned off.** When an automation that was valid is saved invalid, the runner gets its last valid version with the automation turned off. That cancels the queued runs and lets a run in progress finish, the same as turning it off. Removing it from the runner instead would let a fixed version start a second run while the old one was still finishing.
+
+### Checking Automations
+The designer checks an automation while it's being built, so it can list problems and offer the right values at each step. **The rules live only in the engine.** The designer sends its draft to one function and shows what comes back. A second copy of the rules in TypeScript would slowly drift from the real ones.
+
+The check returns:
+- **Every problem,** not just the first. Each has a level, the step and setting it belongs to (or that it's about the trigger or the whole automation), and a message written for the streamer, such as "“Send a chat message” needs you to write a message."
+- **For each step:** the variables it can use, its outcomes for its current settings, and whether a run can reach it.
+
+**Levels:**
+- **Must fix:** anything that makes the automation invalid, as above. Also a setting with a maximum length, such as a chat message, whose own text is already over it before any variables are inserted, and a list of choices with the same choice twice.
+- **Good to know:** steps that can never run because every branch of a split before them ends the automation. Whendo used to reject these. Now they're allowed, since they're harmless and often appear midway through an edit. Only the first such step in each sequence is reported, so a long tail of steps produces one problem rather than many.
+
+**While the automation is unfinished:**
+- **With no trigger, or an unknown one,** references to trigger variables aren't checked, because every one of them would be a problem and none would help.
+- **A step of an unknown type** is a problem, and its branches aren't checked, since its outcomes are unknown.
+- **Branches must match outcomes exactly,** even midway through an edit. When a step's outcomes change, such as a choice being added, the designer adds or removes branches using the outcomes the check returns.
+
+Problems that depend on the world outside the automation, such as OBS not being connected, aren't part of the check. They belong to the integrations, and will come with the first steps that need them.
+
+### What Definitions Tell the Designer
+Trigger and step definitions carry the text the designer shows, so an integration that adds a step also says how it reads:
+
+- **Sentence:** a list of parts, each either fixed words or a setting, such as `"Say in chat"` followed by the message. Every setting appears in the sentence exactly once.
+- **Description:** one line for the trigger or step picker.
+- **Group,** for steps: what the step acts on, such as "Chat" or "Timing," which groups the step picker.
+- **Placeholder,** for settings: what an empty value says, written as an instruction, such as "pick a redeem." Problems reuse it: "needs you to pick a redeem."
+- **Maximum length,** for text and template settings, where the integration has one.
+- **Common,** for variables: whether the designer shows it first, before a "more" link.
+- **Outcome sentences:** each outcome of a step that splits has a sentence that labels its branch, such as "If so." It can include text the user wrote, so "wait for a chat message" can label a branch "If they type `!a1`."
+
 ## Run History
 
 Run history is stored in files, one per day, at `<user config folder>/whendo/run-history/<YYYY-MM-DD>.jsonl`. Each line is one finished run.

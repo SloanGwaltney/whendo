@@ -3,6 +3,7 @@ package automation_test
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/SloanGwaltney/whendo/engine/automation"
@@ -19,14 +20,20 @@ func assertValid(t *testing.T, testAutomation automation.Automation) {
 	}
 }
 
-func assertInvalid(t *testing.T, testAutomation automation.Automation, wantedCause error) {
+// assertMustFix checks that the automation is invalid because of a must-fix
+// problem about the given subject and step.
+func assertMustFix(t *testing.T, testAutomation automation.Automation, subject automation.ProblemSubject, stepID string) {
 	t.Helper()
+	report := automation.Check(testAutomation, newTestCatalog(t))
+	isFound := slices.ContainsFunc(report.Problems, func(problem automation.Problem) bool {
+		return problem.Level == automation.ProblemLevelMustFix && problem.Subject == subject && problem.StepID == stepID
+	})
+	if !isFound {
+		t.Errorf("got problems %+v, want a must-fix problem about %s %q", report.Problems, subject, stepID)
+	}
 	err := automation.Validate(testAutomation, newTestCatalog(t))
 	if !errors.Is(err, automation.ErrInvalidAutomation) {
-		t.Fatalf("got error %v, want ErrInvalidAutomation", err)
-	}
-	if wantedCause != nil && !errors.Is(err, wantedCause) {
-		t.Errorf("got error %v, want it caused by %v", err, wantedCause)
+		t.Errorf("got error %v, want ErrInvalidAutomation", err)
 	}
 }
 
@@ -56,13 +63,13 @@ func TestValidate_AllowsVariableAfterSplitWhenMissingOnlyFromBranchesThatEnd(t *
 }
 
 func TestValidate_RejectsVariableAfterSplitWhenAContinuingBranchLacksIt(t *testing.T) {
-	assertInvalid(t, newAutomation(t,
+	assertMustFix(t, newAutomation(t,
 		waitStep("wait",
 			branch(automation.AfterBranchContinue),
 			branch(automation.AfterBranchContinue),
 		),
 		sayStep(t, "sayChoice", referenceTo(stepVariable("wait", replyVariable))),
-	), automationsetting.ErrVariableUnavailable)
+	), automation.ProblemSubjectStep, "sayChoice")
 }
 
 func TestValidate_AllowsOutcomeVariableInsideItsBranch(t *testing.T) {
@@ -75,23 +82,23 @@ func TestValidate_AllowsOutcomeVariableInsideItsBranch(t *testing.T) {
 }
 
 func TestValidate_RejectsOutcomeVariableInAnotherBranch(t *testing.T) {
-	assertInvalid(t, newAutomation(t,
+	assertMustFix(t, newAutomation(t,
 		waitStep("wait",
 			branch(automation.AfterBranchEnd),
 			branch(automation.AfterBranchEnd, sayStep(t, "sayChoice", referenceTo(stepVariable("wait", replyVariable)))),
 		),
-	), automationsetting.ErrVariableUnavailable)
+	), automation.ProblemSubjectStep, "sayChoice")
 }
 
 func TestValidate_RejectsVariableFromStepInsideOnlyOneContinuingBranch(t *testing.T) {
 	roll := stepVariable("rollInYes", rollVariable)
-	assertInvalid(t, newAutomation(t,
+	assertMustFix(t, newAutomation(t,
 		checkStep(t, "check", triggerVariable(redeemerNameVariable),
 			branch(automation.AfterBranchContinue, rollStep("rollInYes")),
 			branch(automation.AfterBranchContinue),
 		),
 		sayStep(t, "sayRoll", referenceTo(roll)),
-	), automationsetting.ErrVariableUnavailable)
+	), automation.ProblemSubjectStep, "sayRoll")
 }
 
 func TestValidate_KeepsVariablesFromBeforeSplitAvailableAfterIt(t *testing.T) {
@@ -124,77 +131,73 @@ func TestValidate_IgnoresBranchThatEndsInsideANestedSplit(t *testing.T) {
 }
 
 func TestValidate_RejectsVariableFromLaterStep(t *testing.T) {
-	assertInvalid(t, newAutomation(t,
+	assertMustFix(t, newAutomation(t,
 		sayStep(t, "sayRoll", referenceTo(stepVariable("roll", rollVariable))),
 		rollStep("roll"),
-	), automationsetting.ErrVariableUnavailable)
+	), automation.ProblemSubjectStep, "sayRoll")
 }
 
 func TestValidate_RejectsVariableTheTriggerDoesntProvide(t *testing.T) {
-	assertInvalid(t, newAutomation(t,
+	assertMustFix(t, newAutomation(t,
 		sayStep(t, "say", referenceTo(triggerVariable("weather"))),
-	), automationsetting.ErrVariableUnavailable)
-}
-
-func TestValidate_RejectsStepsAfterSplitWhereEveryBranchEnds(t *testing.T) {
-	assertInvalid(t, newAutomation(t,
-		waitStep("wait",
-			branch(automation.AfterBranchEnd),
-			branch(automation.AfterBranchEnd),
-		),
-		sayStep(t, "neverRuns", nil),
-	), nil)
+	), automation.ProblemSubjectStep, "say")
 }
 
 func TestValidate_RejectsMissingRequiredSettings(t *testing.T) {
 	missingTriggerSetting := newAutomation(t)
 	missingTriggerSetting.Trigger.Settings = automationsetting.Values{}
-	assertInvalid(t, missingTriggerSetting, automationsetting.ErrSettingMissing)
+	assertMustFix(t, missingTriggerSetting, automation.ProblemSubjectTrigger, "")
 
 	stepWithoutMessage := automation.Step{ID: "say", Type: sayStepType}
-	assertInvalid(t, newAutomation(t, stepWithoutMessage), automationsetting.ErrSettingMissing)
+	assertMustFix(t, newAutomation(t, stepWithoutMessage), automation.ProblemSubjectStep, "say")
 }
 
-func TestValidate_RejectsUnknownTriggerAndStepTypes(t *testing.T) {
+func TestValidate_RejectsMissingAndUnknownTriggers(t *testing.T) {
+	noTrigger := newAutomation(t)
+	noTrigger.Trigger = automation.TriggerSelection{}
+	assertMustFix(t, noTrigger, automation.ProblemSubjectTrigger, "")
+
 	unknownTrigger := newAutomation(t)
 	unknownTrigger.Trigger.ID = "test.raid"
-	assertInvalid(t, unknownTrigger, nil)
+	assertMustFix(t, unknownTrigger, automation.ProblemSubjectTrigger, "")
+}
 
-	assertInvalid(t, newAutomation(t, automation.Step{ID: "dance", Type: "test.dance"}), nil)
+func TestValidate_RejectsUnknownStepTypes(t *testing.T) {
+	assertMustFix(t, newAutomation(t, automation.Step{ID: "dance", Type: "test.dance"}), automation.ProblemSubjectStep, "dance")
 }
 
 func TestValidate_RejectsDuplicateStepIDsAcrossBranches(t *testing.T) {
-	assertInvalid(t, newAutomation(t,
+	assertMustFix(t, newAutomation(t,
 		waitStep("wait",
 			branch(automation.AfterBranchEnd, rollStep("roll")),
 			branch(automation.AfterBranchEnd, rollStep("roll")),
 		),
-	), nil)
+	), automation.ProblemSubjectStep, "roll")
 }
 
 func TestValidate_RejectsStepWithoutID(t *testing.T) {
-	assertInvalid(t, newAutomation(t, rollStep("")), nil)
+	assertMustFix(t, newAutomation(t, rollStep("")), automation.ProblemSubjectStep, "")
 }
 
 func TestValidate_RejectsMissingAndExtraBranches(t *testing.T) {
 	missingBranch := waitStep("wait", branch(automation.AfterBranchEnd), branch(automation.AfterBranchEnd))
 	delete(missingBranch.Branches, timedOutOutcomeID)
-	assertInvalid(t, newAutomation(t, missingBranch), nil)
+	assertMustFix(t, newAutomation(t, missingBranch), automation.ProblemSubjectStep, "wait")
 
 	wrongBranch := waitStep("wait", branch(automation.AfterBranchEnd), branch(automation.AfterBranchEnd))
 	delete(wrongBranch.Branches, timedOutOutcomeID)
 	wrongBranch.Branches["gaveUp"] = branch(automation.AfterBranchEnd)
-	assertInvalid(t, newAutomation(t, wrongBranch), nil)
+	assertMustFix(t, newAutomation(t, wrongBranch), automation.ProblemSubjectStep, "wait")
 
 	branchesOnSingleOutcomeStep := rollStep("roll")
 	branchesOnSingleOutcomeStep.Branches = map[string]automation.Branch{step.DefaultOutcomeID: branch(automation.AfterBranchContinue)}
-	assertInvalid(t, newAutomation(t, branchesOnSingleOutcomeStep), nil)
+	assertMustFix(t, newAutomation(t, branchesOnSingleOutcomeStep), automation.ProblemSubjectStep, "roll")
 }
 
 func TestValidate_RejectsUnknownBranchEnding(t *testing.T) {
-	assertInvalid(t, newAutomation(t,
+	assertMustFix(t, newAutomation(t,
 		waitStep("wait", branch("jumpToStart"), branch(automation.AfterBranchEnd)),
-	), nil)
+	), automation.ProblemSubjectStep, "wait")
 }
 
 func TestValidate_RejectsIDsThatArentSafeFileNames(t *testing.T) {
@@ -211,13 +214,161 @@ func TestValidate_RejectsIDsThatArentSafeFileNames(t *testing.T) {
 func TestValidate_RejectsBlankName(t *testing.T) {
 	unnamedAutomation := newAutomation(t)
 	unnamedAutomation.Name = "  "
-	assertInvalid(t, unnamedAutomation, nil)
+	assertMustFix(t, unnamedAutomation, automation.ProblemSubjectAutomation, "")
 }
 
 func TestValidate_AcceptsNewID(t *testing.T) {
 	newIDAutomation := newAutomation(t)
 	newIDAutomation.ID = automation.NewID()
 	assertValid(t, newIDAutomation)
+}
+
+func TestValidate_ReturnsFirstProblemMessage(t *testing.T) {
+	err := automation.Validate(newAutomation(t, automation.Step{ID: "say", Type: sayStepType}), newTestCatalog(t))
+
+	if err == nil || !strings.Contains(err.Error(), messagePlaceholder) {
+		t.Errorf("got error %v, want it to say the step needs you to %s", err, messagePlaceholder)
+	}
+}
+
+func TestValidate_IgnoresSettingValuesWithoutDefinitions(t *testing.T) {
+	stepWithDroppedSetting := sayStep(t, "say", nil)
+	stepWithDroppedSetting.Settings["droppedSetting"] = encode(t, "anything")
+
+	assertValid(t, newAutomation(t, stepWithDroppedSetting))
+}
+
+func TestCheck_ReportsEveryProblemNotJustTheFirst(t *testing.T) {
+	testAutomation := newAutomation(t,
+		automation.Step{ID: "firstSay", Type: sayStepType},
+		automation.Step{ID: "secondSay", Type: sayStepType},
+	)
+	testAutomation.Name = ""
+
+	report := automation.Check(testAutomation, newTestCatalog(t))
+
+	if len(report.Problems) != 3 {
+		t.Errorf("got problems %+v, want one for the name and one for each step", report.Problems)
+	}
+}
+
+func TestCheck_OrdersProblemsAsTheAutomationReads(t *testing.T) {
+	testAutomation := newAutomation(t,
+		automation.Step{ID: "sayWithoutMessage", Type: sayStepType},
+		automation.Step{ID: "dance", Type: "test.dance"},
+	)
+	testAutomation.Name = ""
+	testAutomation.Trigger.Settings = automationsetting.Values{}
+
+	report := automation.Check(testAutomation, newTestCatalog(t))
+
+	var subjects []string
+	for _, problem := range report.Problems {
+		subjects = append(subjects, string(problem.Subject)+":"+problem.StepID)
+	}
+	wantedSubjects := []string{"automation:", "trigger:", "step:sayWithoutMessage", "step:dance"}
+	if !slices.Equal(subjects, wantedSubjects) {
+		t.Errorf("got problems about %v, want %v", subjects, wantedSubjects)
+	}
+}
+
+func TestCheck_UsesPlaceholderForMissingSetting(t *testing.T) {
+	testAutomation := newAutomation(t, automation.Step{ID: "say", Type: sayStepType})
+	testAutomation.Trigger.Settings = automationsetting.Values{}
+
+	report := automation.Check(testAutomation, newTestCatalog(t))
+
+	wantedMessages := []string{"The trigger needs you to " + rewardPlaceholder + ".", "“Say” needs you to " + messagePlaceholder + "."}
+	var messages []string
+	for _, problem := range report.Problems {
+		messages = append(messages, problem.Message)
+	}
+	if !slices.Equal(messages, wantedMessages) {
+		t.Errorf("got messages %q, want %q", messages, wantedMessages)
+	}
+	if report.Problems[1].SettingID != messageSettingID {
+		t.Errorf("got setting %q, want %q", report.Problems[1].SettingID, messageSettingID)
+	}
+}
+
+func TestCheck_NamesVariableThatComesFromALaterStep(t *testing.T) {
+	report := automation.Check(newAutomation(t,
+		sayStep(t, "sayRoll", referenceTo(stepVariable("roll", rollVariable))),
+		rollStep("roll"),
+	), newTestCatalog(t))
+
+	if len(report.Problems) != 1 || !strings.Contains(report.Problems[0].Message, "“Roll”") {
+		t.Errorf("got problems %+v, want one naming the roll", report.Problems)
+	}
+}
+
+func TestCheck_ReportsVariableFromDeletedStepAsNoLongerExisting(t *testing.T) {
+	report := automation.Check(newAutomation(t,
+		sayStep(t, "sayRoll", referenceTo(stepVariable("deletedRoll", rollVariable))),
+	), newTestCatalog(t))
+
+	if len(report.Problems) != 1 || !strings.Contains(report.Problems[0].Message, "no longer exists") {
+		t.Errorf("got problems %+v, want one saying the value no longer exists", report.Problems)
+	}
+}
+
+func TestCheck_ReportsMessageWhoseOwnTextIsTooLong(t *testing.T) {
+	tooLongMessage := automationsetting.Template{{Text: strings.Repeat("a", maximumMessageLength+1)}}
+	tooLongStep := automation.Step{ID: "say", Type: sayStepType, Settings: automationsetting.Values{messageSettingID: encode(t, tooLongMessage)}}
+
+	assertMustFix(t, newAutomation(t, tooLongStep), automation.ProblemSubjectStep, "say")
+}
+
+func TestCheck_ReportsStepsAfterSplitWhereEveryBranchEndsAsGoodToKnow(t *testing.T) {
+	testAutomation := newAutomation(t,
+		waitStep("wait",
+			branch(automation.AfterBranchEnd),
+			branch(automation.AfterBranchEnd),
+		),
+		sayStep(t, "neverRuns", nil),
+		rollStep("alsoNeverRuns"),
+	)
+
+	report := automation.Check(testAutomation, newTestCatalog(t))
+
+	wantedProblem := automation.Problem{
+		Level:   automation.ProblemLevelGoodToKnow,
+		Subject: automation.ProblemSubjectStep,
+		StepID:  "neverRuns",
+		Message: "“Say” never runs, because every path above it stops.",
+	}
+	if len(report.Problems) != 1 || report.Problems[0].Message != wantedProblem.Message || report.Problems[0].StepID != wantedProblem.StepID || report.Problems[0].Level != wantedProblem.Level {
+		t.Errorf("got problems %+v, want only %+v", report.Problems, wantedProblem)
+	}
+	if !report.Steps["wait"].IsReachable || report.Steps["neverRuns"].IsReachable || report.Steps["alsoNeverRuns"].IsReachable {
+		t.Errorf("got step reports %+v, want only the wait step reachable", report.Steps)
+	}
+	assertValid(t, testAutomation)
+}
+
+func TestCheck_MarksStepsInsideBranchesOfUnreachableStepsUnreachable(t *testing.T) {
+	report := automation.Check(newAutomation(t,
+		waitStep("wait", branch(automation.AfterBranchEnd), branch(automation.AfterBranchEnd)),
+		waitStep("neverRuns", branch(automation.AfterBranchEnd, rollStep("insideNeverRuns")), branch(automation.AfterBranchEnd)),
+	), newTestCatalog(t))
+
+	if report.Steps["insideNeverRuns"].IsReachable {
+		t.Error("got the step inside an unreachable step reachable")
+	}
+	if len(report.Problems) != 1 {
+		t.Errorf("got problems %+v, want one for the first step that never runs", report.Problems)
+	}
+}
+
+func TestCheck_SkipsTriggerVariablesWhileThereIsNoTrigger(t *testing.T) {
+	testAutomation := newAutomation(t, sayStep(t, "say", referenceTo(triggerVariable(redeemerNameVariable))))
+	testAutomation.Trigger = automation.TriggerSelection{}
+
+	report := automation.Check(testAutomation, newTestCatalog(t))
+
+	if len(report.Problems) != 1 || report.Problems[0].Subject != automation.ProblemSubjectTrigger {
+		t.Errorf("got problems %+v, want only the missing trigger", report.Problems)
+	}
 }
 
 func availableReferences(variables []automation.AvailableVariable) []automationsetting.VariableReference {
@@ -228,29 +379,29 @@ func availableReferences(variables []automation.AvailableVariable) []automations
 	return references
 }
 
-func TestAvailableVariables_ListsTriggerVariablesThenEarlierSteps(t *testing.T) {
+func TestCheck_ListsTriggerVariablesThenEarlierSteps(t *testing.T) {
 	testAutomation := newAutomation(t,
 		rollStep("firstRoll"),
 		rollStep("secondRoll"),
 		sayStep(t, "say", nil),
 	)
 
-	variables, err := automation.AvailableVariables(testAutomation, newTestCatalog(t), "say")
+	variables := automation.Check(testAutomation, newTestCatalog(t)).Steps["say"].AvailableVariables
 
 	wantedReferences := []automationsetting.VariableReference{
 		triggerVariable(redeemerNameVariable),
 		stepVariable("firstRoll", rollVariable),
 		stepVariable("secondRoll", rollVariable),
 	}
-	if err != nil || !slices.Equal(availableReferences(variables), wantedReferences) {
-		t.Errorf("got %v, error %v; want %v", variables, err, wantedReferences)
+	if !slices.Equal(availableReferences(variables), wantedReferences) {
+		t.Fatalf("got %v, want %v", variables, wantedReferences)
 	}
-	if variables[0].DisplayName != "Redeemer's name" || variables[1].DisplayName != "Roll" {
-		t.Errorf("got display names %q and %q", variables[0].DisplayName, variables[1].DisplayName)
+	if variables[0].DisplayName != "Redeemer's name" || !variables[0].IsCommon || variables[1].DisplayName != "Roll" {
+		t.Errorf("got variables %+v", variables)
 	}
 }
 
-func TestAvailableVariables_IncludesOutcomeVariablesInsideBranch(t *testing.T) {
+func TestCheck_IncludesOutcomeVariablesInsideBranch(t *testing.T) {
 	testAutomation := newAutomation(t,
 		waitStep("wait",
 			branch(automation.AfterBranchEnd, sayStep(t, "sayChoice", nil)),
@@ -258,28 +409,33 @@ func TestAvailableVariables_IncludesOutcomeVariablesInsideBranch(t *testing.T) {
 		),
 	)
 
-	variables, err := automation.AvailableVariables(testAutomation, newTestCatalog(t), "sayChoice")
+	variables := automation.Check(testAutomation, newTestCatalog(t)).Steps["sayChoice"].AvailableVariables
 
-	if err != nil || !slices.Contains(availableReferences(variables), stepVariable("wait", replyVariable)) {
-		t.Errorf("got %v, error %v; want the reply included", variables, err)
+	if !slices.Contains(availableReferences(variables), stepVariable("wait", replyVariable)) {
+		t.Errorf("got %v, want the reply included", variables)
 	}
 }
 
-func TestAvailableVariables_WorksWhileSettingsAreUnfinished(t *testing.T) {
-	testAutomation := newAutomation(t, automation.Step{ID: "say", Type: sayStepType})
+func TestCheck_ReportsEachStepsOutcomes(t *testing.T) {
+	report := automation.Check(newAutomation(t,
+		waitStep("wait", branch(automation.AfterBranchEnd), branch(automation.AfterBranchEnd)),
+	), newTestCatalog(t))
 
-	variables, err := automation.AvailableVariables(testAutomation, newTestCatalog(t), "say")
-
-	if err != nil || len(variables) != 1 {
-		t.Errorf("got %v, error %v; want the trigger's variable", variables, err)
+	var outcomeIDs []string
+	for _, outcome := range report.Steps["wait"].Outcomes {
+		outcomeIDs = append(outcomeIDs, outcome.ID)
+	}
+	if !slices.Equal(outcomeIDs, []string{repliedOutcomeID, timedOutOutcomeID}) {
+		t.Errorf("got outcomes %v", outcomeIDs)
 	}
 }
 
-func TestAvailableVariables_ReturnsErrorForUnknownStep(t *testing.T) {
-	_, err := automation.AvailableVariables(newAutomation(t, rollStep("roll")), newTestCatalog(t), "missing")
+func TestCheck_ReportsStepsWhileSettingsAreUnfinished(t *testing.T) {
+	report := automation.Check(newAutomation(t, automation.Step{ID: "say", Type: sayStepType}), newTestCatalog(t))
 
-	if !errors.Is(err, automation.ErrStepNotFound) {
-		t.Errorf("got error %v, want ErrStepNotFound", err)
+	stepReport, isFound := report.Steps["say"]
+	if !isFound || len(stepReport.AvailableVariables) != 1 || !stepReport.IsReachable {
+		t.Errorf("got report %+v, want the trigger's variable and the step reachable", stepReport)
 	}
 }
 
@@ -298,5 +454,39 @@ func TestNewCatalog_ReturnsErrorForDuplicateIDs(t *testing.T) {
 
 	if !errors.Is(triggerErr, automation.ErrDuplicateID) || !errors.Is(stepErr, automation.ErrDuplicateID) {
 		t.Errorf("got errors %v and %v, want ErrDuplicateID", triggerErr, stepErr)
+	}
+}
+
+func TestNewCatalog_ReturnsErrorWhenSentenceDoesntPlaceEachSettingOnce(t *testing.T) {
+	message := automationsetting.Definition{ID: messageSettingID, Kind: automationsetting.KindTemplate}
+	mismatchedSentences := map[string]automationsetting.Sentence{
+		"missing setting":   {automationsetting.Words("Say")},
+		"repeated setting":  {automationsetting.Setting(messageSettingID), automationsetting.Setting(messageSettingID)},
+		"undefined setting": {automationsetting.Setting(messageSettingID), automationsetting.Setting("volume")},
+	}
+
+	for description, sentence := range mismatchedSentences {
+		steps := []step.Step{fakeStep{definition: step.Definition{ID: sayStepType, Sentence: sentence, Settings: []automationsetting.Definition{message}}}}
+		_, err := automation.NewCatalog(nil, steps)
+		if !errors.Is(err, automation.ErrSentenceMismatch) {
+			t.Errorf("%s: got error %v, want ErrSentenceMismatch", description, err)
+		}
+	}
+}
+
+func TestCatalog_ListsDefinitionsInTheOrderGiven(t *testing.T) {
+	catalog := newTestCatalog(t)
+
+	var stepIDs []string
+	for _, definition := range catalog.StepDefinitions() {
+		stepIDs = append(stepIDs, definition.ID)
+	}
+	triggerDefinitions := catalog.TriggerDefinitions()
+
+	if !slices.Equal(stepIDs, []string{sayStepType, rollStepType, checkStepType, waitStepType}) {
+		t.Errorf("got steps %v", stepIDs)
+	}
+	if len(triggerDefinitions) != 1 || triggerDefinitions[0].ID != redeemTriggerID {
+		t.Errorf("got triggers %+v", triggerDefinitions)
 	}
 }

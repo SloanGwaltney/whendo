@@ -22,8 +22,11 @@ func (waitStep) Definition() step.Definition {
 	return step.Definition{
 		ID:          WaitStepID,
 		DisplayName: "Wait",
+		Description: "Pause for a while before the next step.",
+		Group:       timingGroup,
+		Sentence:    automationsetting.Sentence{automationsetting.Words("Wait"), automationsetting.Setting(WaitDurationSetting)},
 		Settings: []automationsetting.Definition{
-			{ID: WaitDurationSetting, DisplayName: "How long", Kind: automationsetting.KindDuration, IsRequired: true},
+			{ID: WaitDurationSetting, DisplayName: "How long", Kind: automationsetting.KindDuration, IsRequired: true, Placeholder: "choose how long"},
 		},
 	}
 }

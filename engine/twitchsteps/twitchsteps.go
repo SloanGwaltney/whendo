@@ -14,6 +14,9 @@ import (
 // DefaultHelixBaseURL is the base URL of Twitch's API.
 const DefaultHelixBaseURL = "https://api.twitch.tv/helix"
 
+// chatGroup is the step picker's group for steps that act on chat.
+const chatGroup = "Chat"
+
 // Account is the Twitch login the steps act as. twitchauth.Session
 // implements it.
 type Account interface {

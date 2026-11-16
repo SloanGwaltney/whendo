@@ -19,9 +19,17 @@ const DefaultOutcomeID = "done"
 // Definition describes a step. Its ID is prefixed by where the step comes
 // from, such as "core.wait" or "twitch.sendChatMessage".
 type Definition struct {
-	ID          string                         `json:"id"`
-	DisplayName string                         `json:"displayName"`
-	Settings    []automationsetting.Definition `json:"settings"`
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
+	// Description is one line for the step picker.
+	Description string `json:"description"`
+	// Group is what the step acts on, such as "Chat" or "Timing". The step
+	// picker groups steps by it.
+	Group string `json:"group"`
+	// Sentence is how the designer shows the step, such as "Say in chat"
+	// followed by the message setting.
+	Sentence automationsetting.Sentence     `json:"sentence"`
+	Settings []automationsetting.Definition `json:"settings"`
 }
 
 // Outcome is one way a step can finish. Steps with more than one outcome
@@ -29,9 +37,13 @@ type Definition struct {
 // the values the step provides when it finishes this way, such as the reply
 // to "wait for a chat message".
 type Outcome struct {
-	ID          string                       `json:"id"`
-	DisplayName string                       `json:"displayName"`
-	Variables   []trigger.VariableDefinition `json:"variables"`
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
+	// Sentence labels the outcome's branch in the designer, such as "If
+	// so". Steps that don't split leave it empty, since they have no
+	// branches.
+	Sentence  automationsetting.Sentence   `json:"sentence"`
+	Variables []trigger.VariableDefinition `json:"variables"`
 }
 
 // Input is everything a step gets when it runs.

@@ -11,5 +11,7 @@ export {
 };
 
 export type {
-    AutomationSummary
+    AutomationSummary,
+    CatalogDefinitions,
+    SaveResult
 } from "./models.js";

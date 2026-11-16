@@ -3,25 +3,16 @@ package automationsetting
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
-// Validate checks each defined setting's value against its kind: required
-// settings must have a value, and every value must be readable as its kind.
-// Values with no definition are ignored rather than rejected, so an
-// automation stays valid when a later version of Whendo drops a setting from
-// a step. Kinds an integration adds are only checked for presence, since
-// only the integration knows what they hold.
-func (values Values) Validate(definitions []Definition) error {
-	for _, definition := range definitions {
-		err := values.validateSetting(definition)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (values Values) validateSetting(definition Definition) error {
+// ValidateSetting checks one defined setting's value against its kind:
+// a required setting must have a value, and a value must be readable as its
+// kind. Kinds an integration adds are only checked for presence, since only
+// the integration knows what they hold. Values that have no definition are
+// never checked, so an automation stays valid when a later version of Whendo
+// drops a setting from a step.
+func (values Values) ValidateSetting(definition Definition) error {
 	if !values.hasValue(definition.ID) {
 		if definition.IsRequired {
 			return fmt.Errorf("%w: %q", ErrSettingMissing, definition.ID)
@@ -66,6 +57,15 @@ func (values Values) validateText(definition Definition) error {
 	if definition.IsRequired && strings.TrimSpace(text) == "" {
 		return fmt.Errorf("%w: %q is blank", ErrSettingMissing, definition.ID)
 	}
+	return checkLength(definition, utf8.RuneCountInString(text))
+}
+
+// checkLength counts characters rather than bytes, because limits such as
+// Twitch's are in characters.
+func checkLength(definition Definition, characterCount int) error {
+	if definition.MaximumLength > 0 && characterCount > definition.MaximumLength {
+		return fmt.Errorf("%w: %q has %d characters, more than %d", ErrSettingTooLong, definition.ID, characterCount, definition.MaximumLength)
+	}
 	return nil
 }
 
@@ -74,10 +74,12 @@ func (values Values) validateTemplate(definition Definition) error {
 	if err != nil {
 		return err
 	}
-	if definition.IsRequired && len(template) == 0 {
+	if definition.IsRequired && template.isBlank() {
 		return fmt.Errorf("%w: %q is empty", ErrSettingMissing, definition.ID)
 	}
-	return nil
+	// Only the template's own text counts, since variables' values aren't
+	// known until it runs. Text that's already too long can never fit.
+	return checkLength(definition, template.textLength())
 }
 
 func (values Values) validateOption(definition Definition) error {
@@ -102,6 +104,7 @@ func (values Values) validateChoiceList(definition Definition) error {
 		return fmt.Errorf("%w: %q has no choices", ErrSettingMissing, definition.ID)
 	}
 	seenChoiceIDs := make(map[string]bool, len(choices))
+	seenChoiceTexts := make(map[string]bool, len(choices))
 	for choiceIndex, choice := range choices {
 		if choice.ID == "" {
 			return fmt.Errorf("%w: choice %d of setting %q has no ID", ErrSettingInvalid, choiceIndex, definition.ID)
@@ -110,40 +113,48 @@ func (values Values) validateChoiceList(definition Definition) error {
 			return fmt.Errorf("%w: setting %q has two choices with ID %q", ErrSettingInvalid, definition.ID, choice.ID)
 		}
 		seenChoiceIDs[choice.ID] = true
-		if strings.TrimSpace(choice.Text) == "" {
-			return fmt.Errorf("%w: choice %d of setting %q is blank", ErrSettingInvalid, choiceIndex, definition.ID)
+		trimmedText := strings.TrimSpace(choice.Text)
+		if trimmedText == "" {
+			return fmt.Errorf("%w: choice %d of setting %q", ErrBlankChoice, choiceIndex, definition.ID)
 		}
+		// Choices are matched ignoring capitalization, so "!A1" repeats
+		// "!a1", and the second could never be chosen.
+		comparableText := strings.ToLower(trimmedText)
+		if seenChoiceTexts[comparableText] {
+			return fmt.Errorf("%w: %q in setting %q", ErrRepeatedChoice, trimmedText, definition.ID)
+		}
+		seenChoiceTexts[comparableText] = true
 	}
 	return nil
 }
 
-// VariableReferences returns every variable the defined settings refer to,
-// through KindVariable settings and the variables inserted in KindTemplate
-// settings. Settings without a value are skipped.
-func (values Values) VariableReferences(definitions []Definition) ([]VariableReference, error) {
-	var references []VariableReference
-	for _, definition := range definitions {
-		if !values.hasValue(definition.ID) {
-			continue
-		}
-		switch definition.Kind {
-		case KindVariable:
-			reference, err := values.VariableReference(definition.ID)
-			if err != nil {
-				return nil, err
-			}
-			references = append(references, reference)
-		case KindTemplate:
-			template, err := values.Template(definition.ID)
-			if err != nil {
-				return nil, err
-			}
-			for _, part := range template {
-				if part.Variable != nil {
-					references = append(references, *part.Variable)
-				}
-			}
-		}
+// VariableReferences returns every variable one setting refers to: the
+// variable of a KindVariable setting, or the variables inserted in a
+// KindTemplate setting. A setting without a value refers to none.
+func (values Values) VariableReferences(definition Definition) ([]VariableReference, error) {
+	if !values.hasValue(definition.ID) {
+		return nil, nil
 	}
-	return references, nil
+	switch definition.Kind {
+	case KindVariable:
+		reference, err := values.VariableReference(definition.ID)
+		if err != nil {
+			return nil, err
+		}
+		return []VariableReference{reference}, nil
+	case KindTemplate:
+		template, err := values.Template(definition.ID)
+		if err != nil {
+			return nil, err
+		}
+		var references []VariableReference
+		for _, part := range template {
+			if part.Variable != nil {
+				references = append(references, *part.Variable)
+			}
+		}
+		return references, nil
+	default:
+		return nil, nil
+	}
 }

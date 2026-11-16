@@ -131,20 +131,28 @@ func main() {
 
 // newAutomationsServiceForApp builds the automation engine with every
 // trigger and step Whendo offers, storing its files in Whendo's data folder.
+// newAppCatalog returns every trigger and step Whendo offers.
+func newAppCatalog(twitchStepsConfig twitchsteps.Config) (*automation.Catalog, error) {
+	steps := append(coresteps.Steps(), twitchsteps.Steps(twitchStepsConfig)...)
+	catalog, err := automation.NewCatalog(twitcheventsub.Triggers(), steps)
+	if err != nil {
+		return nil, fmt.Errorf("building the catalog of triggers and steps: %w", err)
+	}
+	return catalog, nil
+}
+
 func newAutomationsServiceForApp(twitchSession *twitchauth.Session, twitchHTTPClient *http.Client) (*AutomationsService, error) {
 	folder, err := dataFolder()
 	if err != nil {
 		return nil, err
 	}
-	steps := coresteps.Steps()
-	steps = append(steps, twitchsteps.Steps(twitchsteps.Config{
+	catalog, err := newAppCatalog(twitchsteps.Config{
 		ClientID:   twitchClientID(),
 		Account:    twitchSession,
 		HTTPClient: twitchHTTPClient,
-	})...)
-	catalog, err := automation.NewCatalog(twitcheventsub.Triggers(), steps)
+	})
 	if err != nil {
-		return nil, fmt.Errorf("building the catalog of triggers and steps: %w", err)
+		return nil, err
 	}
 	return newAutomationsService(
 		catalog,

@@ -100,13 +100,15 @@ func (redeemTrigger) Definition() trigger.Definition {
 	return trigger.Definition{
 		ID:          RedeemTriggerID,
 		DisplayName: "Channel point redeem",
+		Description: "A viewer spends channel points on one of your redeems.",
+		Sentence:    automationsetting.Sentence{automationsetting.Words("someone redeems"), automationsetting.Setting(RewardSetting)},
 		Settings: []automationsetting.Definition{
-			{ID: RewardSetting, DisplayName: "Reward", Kind: RewardSettingKind, IsRequired: true},
+			{ID: RewardSetting, DisplayName: "Reward", Kind: RewardSettingKind, IsRequired: true, Placeholder: "pick a redeem"},
 		},
 		Variables: []trigger.VariableDefinition{
-			{ID: RedeemerDisplayNameVariable, DisplayName: "Redeemer's name"},
-			{ID: UserInputVariable, DisplayName: "Redeemer's message"},
-			{ID: RewardTitleVariable, DisplayName: "Reward name"},
+			{ID: RedeemerDisplayNameVariable, DisplayName: "Redeemer's name", IsCommon: true},
+			{ID: UserInputVariable, DisplayName: "Redeemer's message", IsCommon: true},
+			{ID: RewardTitleVariable, DisplayName: "Reward name", IsCommon: true},
 			{ID: RewardCostVariable, DisplayName: "Reward cost"},
 			{ID: RewardPromptVariable, DisplayName: "Reward description"},
 			{ID: RedeemedAtVariable, DisplayName: "Time of redeem"},
@@ -138,13 +140,17 @@ func (chatMessageTrigger) Definition() trigger.Definition {
 	return trigger.Definition{
 		ID:          ChatMessageTriggerID,
 		DisplayName: "Chat message",
+		// Whendo has no separate idea of a command, so the description says
+		// this is how to make one, for users who look for "commands".
+		Description: "Someone types a chat message that starts with your text, like !discord. This is how to make a chat command.",
+		Sentence:    automationsetting.Sentence{automationsetting.Words("a chat message starts with"), automationsetting.Setting(StartsWithSetting)},
 		Settings: []automationsetting.Definition{
-			{ID: StartsWithSetting, DisplayName: "Starts with", Kind: automationsetting.KindText, IsRequired: true},
+			{ID: StartsWithSetting, DisplayName: "Starts with", Kind: automationsetting.KindText, IsRequired: true, Placeholder: "type some text, like !discord"},
 		},
 		Variables: []trigger.VariableDefinition{
-			{ID: SenderDisplayNameVariable, DisplayName: "Sender's name"},
-			{ID: MessageTextVariable, DisplayName: "Message"},
-			{ID: RestOfMessageVariable, DisplayName: "Rest of the message", IsAddedByFilter: true},
+			{ID: SenderDisplayNameVariable, DisplayName: "Sender's name", IsCommon: true},
+			{ID: MessageTextVariable, DisplayName: "Message", IsCommon: true},
+			{ID: RestOfMessageVariable, DisplayName: "Rest of the message", IsAddedByFilter: true, IsCommon: true},
 			{ID: SenderLoginVariable, DisplayName: "Sender's login name"},
 			{ID: SenderUserIDVariable, DisplayName: "Sender's user ID"},
 			{ID: MessageIDVariable, DisplayName: "Message ID"},
@@ -204,8 +210,10 @@ func (followTrigger) Definition() trigger.Definition {
 	return trigger.Definition{
 		ID:          FollowTriggerID,
 		DisplayName: "Follow",
+		Description: "Someone follows your channel.",
+		Sentence:    automationsetting.Sentence{automationsetting.Words("someone follows you")},
 		Variables: []trigger.VariableDefinition{
-			{ID: FollowerDisplayNameVariable, DisplayName: "Follower's name"},
+			{ID: FollowerDisplayNameVariable, DisplayName: "Follower's name", IsCommon: true},
 			{ID: FollowedAtVariable, DisplayName: "Time of follow"},
 			{ID: FollowerLoginVariable, DisplayName: "Follower's login name"},
 			{ID: FollowerUserIDVariable, DisplayName: "Follower's user ID"},

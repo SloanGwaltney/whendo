@@ -46,23 +46,33 @@ func (checkConditionStep) Definition() step.Definition {
 	return step.Definition{
 		ID:          CheckConditionStepID,
 		DisplayName: "Check a condition",
+		Description: "Do different things depending on a value, like whether the roll is 20.",
+		Group:       numbersAndChoicesGroup,
+		Sentence: automationsetting.Sentence{
+			automationsetting.Words("Check whether"),
+			automationsetting.Setting(CheckedVariableSetting),
+			automationsetting.Setting(ComparisonSetting),
+			automationsetting.Setting(ComparedValueSetting),
+		},
 		Settings: []automationsetting.Definition{
-			{ID: CheckedVariableSetting, DisplayName: "Check", Kind: automationsetting.KindVariable, IsRequired: true},
-			{ID: ComparisonSetting, DisplayName: "Comparison", Kind: automationsetting.KindOption, IsRequired: true, Options: []automationsetting.Option{
+			{ID: CheckedVariableSetting, DisplayName: "Check", Kind: automationsetting.KindVariable, IsRequired: true, Placeholder: "pick a value to check"},
+			{ID: ComparisonSetting, DisplayName: "Comparison", Kind: automationsetting.KindOption, IsRequired: true, Placeholder: "pick a comparison", Options: []automationsetting.Option{
 				{ID: ComparisonIs, DisplayName: "is"},
 				{ID: ComparisonIsNot, DisplayName: "is not"},
 				{ID: ComparisonIsMoreThan, DisplayName: "is more than"},
 				{ID: ComparisonIsLessThan, DisplayName: "is less than"},
 			}},
-			{ID: ComparedValueSetting, DisplayName: "Value", Kind: automationsetting.KindTemplate},
+			// An empty value checks that the variable is empty, so the
+			// placeholder says so rather than asking for something.
+			{ID: ComparedValueSetting, DisplayName: "Value", Kind: automationsetting.KindTemplate, Placeholder: "empty"},
 		},
 	}
 }
 
 func (checkConditionStep) Outcomes(automationsetting.Values) ([]step.Outcome, error) {
 	return []step.Outcome{
-		{ID: ConditionTrueOutcomeID, DisplayName: "Yes"},
-		{ID: ConditionFalseOutcomeID, DisplayName: "No"},
+		{ID: ConditionTrueOutcomeID, DisplayName: "Yes", Sentence: automationsetting.Sentence{automationsetting.Words("If so")}},
+		{ID: ConditionFalseOutcomeID, DisplayName: "No", Sentence: automationsetting.Sentence{automationsetting.Words("If not")}},
 	}, nil
 }
 

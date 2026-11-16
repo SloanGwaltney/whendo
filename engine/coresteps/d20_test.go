@@ -36,7 +36,7 @@ type fakeSayStep struct {
 }
 
 func (fakeSayStep) Definition() step.Definition {
-	return step.Definition{ID: fakeSayStepID, Settings: []automationsetting.Definition{
+	return step.Definition{ID: fakeSayStepID, Sentence: automationsetting.Sentence{automationsetting.Setting(sayMessage)}, Settings: []automationsetting.Definition{
 		{ID: sayMessage, Kind: automationsetting.KindTemplate, IsRequired: true},
 	}}
 }

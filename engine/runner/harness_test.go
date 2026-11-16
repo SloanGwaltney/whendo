@@ -50,6 +50,7 @@ type eventTrigger struct{}
 func (eventTrigger) Definition() trigger.Definition {
 	return trigger.Definition{
 		ID:       eventTriggerID,
+		Sentence: automationsetting.Sentence{automationsetting.Setting(wordSettingID)},
 		Settings: []automationsetting.Definition{{ID: wordSettingID, Kind: automationsetting.KindText, IsRequired: true}},
 		Variables: []trigger.VariableDefinition{
 			{ID: wordVariable, DisplayName: "Word"},
@@ -131,7 +132,7 @@ func (testHarness *harness) steps() []step.Step {
 	singleOutcome := []step.Outcome{{ID: step.DefaultOutcomeID}}
 	return []step.Step{
 		fakeStep{
-			definition: step.Definition{ID: sayStepType, Settings: []automationsetting.Definition{
+			definition: step.Definition{ID: sayStepType, Sentence: automationsetting.Sentence{automationsetting.Setting(messageSettingID)}, Settings: []automationsetting.Definition{
 				{ID: messageSettingID, Kind: automationsetting.KindTemplate, IsRequired: true},
 			}},
 			outcomes: singleOutcome,
@@ -162,7 +163,7 @@ func (testHarness *harness) steps() []step.Step {
 			},
 		},
 		fakeStep{
-			definition: step.Definition{ID: chooseStepType, Settings: []automationsetting.Definition{
+			definition: step.Definition{ID: chooseStepType, Sentence: automationsetting.Sentence{automationsetting.Setting(outcomeSettingID)}, Settings: []automationsetting.Definition{
 				{ID: outcomeSettingID, Kind: automationsetting.KindOption, IsRequired: true, Options: []automationsetting.Option{
 					{ID: firstOutcomeID}, {ID: secondOutcomeID},
 				}},

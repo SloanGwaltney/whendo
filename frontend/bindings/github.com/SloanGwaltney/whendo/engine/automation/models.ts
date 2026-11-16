@@ -4,6 +4,9 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as automationsetting$0 from "../automationsetting/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as step$0 from "../step/models.js";
 
 /**
  * AfterBranch says what happens when a branch finishes.
@@ -37,11 +40,80 @@ export interface Automation {
 }
 
 /**
+ * AvailableVariable is a variable a step can use, with what the designer
+ * shows for it.
+ */
+export interface AvailableVariable {
+    "reference": automationsetting$0.VariableReference;
+    "displayName": string;
+    "isCommon": boolean;
+}
+
+/**
  * Branch is the sequence of steps for one outcome of a step that splits.
  */
 export interface Branch {
     "steps": Step[] | null;
     "afterBranch": AfterBranch;
+}
+
+/**
+ * Problem is one thing wrong with an automation, with a message written for
+ * the streamer. StepID is set for problems about a step, and SettingID for
+ * problems about one of its settings or one of the trigger's.
+ */
+export interface Problem {
+    "level": ProblemLevel;
+    "subject": ProblemSubject;
+    "stepId"?: string;
+    "settingId"?: string;
+    "message": string;
+}
+
+/**
+ * ProblemLevel says how much a problem matters.
+ */
+export enum ProblemLevel {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    /**
+     * ProblemLevelMustFix means the automation is invalid: it can be saved,
+     * but never runs or turns on until the problem is fixed.
+     */
+    ProblemLevelMustFix = "mustFix",
+
+    /**
+     * ProblemLevelGoodToKnow means the automation is valid, but the user
+     * probably wants to know, such as steps that can never run.
+     */
+    ProblemLevelGoodToKnow = "goodToKnow",
+};
+
+/**
+ * ProblemSubject says what part of an automation a problem is about.
+ */
+export enum ProblemSubject {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    ProblemSubjectAutomation = "automation",
+    ProblemSubjectTrigger = "trigger",
+    ProblemSubjectStep = "step",
+};
+
+/**
+ * Report is the result of checking an automation: every problem it has, in
+ * the order the automation reads, and a report for each step, keyed by step
+ * ID.
+ */
+export interface Report {
+    "problems": Problem[] | null;
+    "steps": { [_ in string]?: StepReport } | null;
 }
 
 /**
@@ -60,6 +132,17 @@ export interface Step {
      * outcomes, since that's how users see them.
      */
     "outcomes"?: { [_ in string]?: Branch } | null;
+}
+
+/**
+ * StepReport is what the designer needs to know about one step: the
+ * variables it can use, in the order to list them, the outcomes it has with
+ * its current settings, and whether a run can reach it at all.
+ */
+export interface StepReport {
+    "availableVariables": AvailableVariable[] | null;
+    "outcomes": step$0.Outcome[] | null;
+    "isReachable": boolean;
 }
 
 /**

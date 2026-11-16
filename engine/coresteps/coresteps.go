@@ -5,6 +5,12 @@ package coresteps
 
 import "github.com/SloanGwaltney/whendo/engine/step"
 
+// Groups for the step picker.
+const (
+	timingGroup            = "Timing"
+	numbersAndChoicesGroup = "Numbers and choices"
+)
+
 // Steps returns every core step.
 func Steps() []step.Step {
 	return []step.Step{waitStep{}, randomNumberStep{}, checkConditionStep{}}

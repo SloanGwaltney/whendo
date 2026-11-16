@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 // VariableSource says where a referenced variable comes from.
@@ -100,6 +101,27 @@ func (template Template) validate() error {
 		}
 	}
 	return nil
+}
+
+// isBlank reports whether the template has no variables and no text other
+// than spaces, which is as empty to a user as no template at all.
+func (template Template) isBlank() bool {
+	for _, part := range template {
+		if part.Variable != nil || strings.TrimSpace(part.Text) != "" {
+			return false
+		}
+	}
+	return true
+}
+
+// textLength counts the characters of the template's own text, leaving out
+// its variables.
+func (template Template) textLength() int {
+	characterCount := 0
+	for _, part := range template {
+		characterCount += utf8.RuneCountInString(part.Text)
+	}
+	return characterCount
 }
 
 // Render returns the template's text with each variable's value inserted.

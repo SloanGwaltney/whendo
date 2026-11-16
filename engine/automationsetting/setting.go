@@ -52,6 +52,16 @@ type Definition struct {
 	// Options lists the allowed values of a KindOption setting. Other kinds
 	// leave it empty.
 	Options []Option `json:"options"`
+	// Placeholder is what the designer shows while the setting is empty.
+	// For a required setting it's an instruction such as "pick a redeem",
+	// so problems can reuse it: "needs you to pick a redeem". An optional
+	// setting's says what empty means instead, such as "empty".
+	Placeholder string `json:"placeholder"`
+	// MaximumLength is the most characters a KindText or KindTemplate
+	// setting may hold, or 0 for no limit. For a template it counts only
+	// the template's own text, since variables' values aren't known until
+	// it runs.
+	MaximumLength int `json:"maximumLength"`
 }
 
 // Choice is one entry in a KindChoiceList setting. Its ID stays the same
@@ -67,6 +77,13 @@ var (
 	ErrSettingMissing = errors.New("setting has no value")
 	// ErrSettingInvalid means a setting's value isn't valid for its kind.
 	ErrSettingInvalid = errors.New("setting value is invalid")
+	// ErrSettingTooLong means a setting holds more characters than its
+	// definition's MaximumLength.
+	ErrSettingTooLong = errors.New("setting value is too long")
+	// ErrBlankChoice and ErrRepeatedChoice are the ways a choice list can be
+	// invalid that a user can cause. Both are also ErrSettingInvalid.
+	ErrBlankChoice    = fmt.Errorf("%w: a choice is blank", ErrSettingInvalid)
+	ErrRepeatedChoice = fmt.Errorf("%w: a choice is repeated", ErrSettingInvalid)
 )
 
 // Values holds the values of a trigger's or step's settings, keyed by

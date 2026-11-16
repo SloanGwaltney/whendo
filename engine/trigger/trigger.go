@@ -20,16 +20,24 @@ type VariableDefinition struct {
 	// after the matched text. A test run form doesn't ask for these, because
 	// the filter fills them in.
 	IsAddedByFilter bool `json:"isAddedByFilter"`
+	// IsCommon means the designer lists the variable first, before a "more"
+	// link, because most automations use it, like the redeemer's name.
+	IsCommon bool `json:"isCommon"`
 }
 
 // Definition describes a trigger an integration offers. Its settings and
 // variables are declared up front so the designer and the test run form know
 // what the trigger takes and provides before any event arrives.
 type Definition struct {
-	ID          string                         `json:"id"`
-	DisplayName string                         `json:"displayName"`
-	Settings    []automationsetting.Definition `json:"settings"`
-	Variables   []VariableDefinition           `json:"variables"`
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
+	// Description is one line for the trigger picker.
+	Description string `json:"description"`
+	// Sentence is how the designer shows the trigger after "When", such as
+	// "someone redeems" followed by the reward setting.
+	Sentence  automationsetting.Sentence     `json:"sentence"`
+	Settings  []automationsetting.Definition `json:"settings"`
+	Variables []VariableDefinition           `json:"variables"`
 }
 
 // Trigger is a trigger an integration offers, with the filter that decides

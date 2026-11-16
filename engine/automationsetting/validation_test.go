@@ -20,10 +20,10 @@ func validate(rawJSON string, definition automationsetting.Definition) error {
 	if rawJSON != "" {
 		values[settingID] = json.RawMessage(rawJSON)
 	}
-	return values.Validate([]automationsetting.Definition{definition})
+	return values.ValidateSetting(definition)
 }
 
-func TestValidate_AcceptsValidValueOfEachKind(t *testing.T) {
+func TestValidateSetting_AcceptsValidValueOfEachKind(t *testing.T) {
 	comparisonDefinition := definitionOf(automationsetting.KindOption, true)
 	comparisonDefinition.Options = []automationsetting.Option{{ID: "is", DisplayName: "is"}}
 	validValues := []struct {
@@ -48,7 +48,7 @@ func TestValidate_AcceptsValidValueOfEachKind(t *testing.T) {
 	}
 }
 
-func TestValidate_ReturnsMissingForAbsentRequiredSetting(t *testing.T) {
+func TestValidateSetting_ReturnsMissingForAbsentRequiredSetting(t *testing.T) {
 	err := validate("", definitionOf(integrationKind, true))
 
 	if !errors.Is(err, automationsetting.ErrSettingMissing) {
@@ -56,7 +56,7 @@ func TestValidate_ReturnsMissingForAbsentRequiredSetting(t *testing.T) {
 	}
 }
 
-func TestValidate_AcceptsAbsentOptionalSetting(t *testing.T) {
+func TestValidateSetting_AcceptsAbsentOptionalSetting(t *testing.T) {
 	err := validate("", definitionOf(automationsetting.KindVariable, false))
 
 	if err != nil {
@@ -64,7 +64,7 @@ func TestValidate_AcceptsAbsentOptionalSetting(t *testing.T) {
 	}
 }
 
-func TestValidate_ReturnsMissingForEmptyRequiredValues(t *testing.T) {
+func TestValidateSetting_ReturnsMissingForEmptyRequiredValues(t *testing.T) {
 	emptyValues := map[automationsetting.Kind]string{
 		automationsetting.KindText:       `"   "`,
 		automationsetting.KindTemplate:   `[]`,
@@ -79,7 +79,7 @@ func TestValidate_ReturnsMissingForEmptyRequiredValues(t *testing.T) {
 	}
 }
 
-func TestValidate_ReturnsInvalidForOptionNotInList(t *testing.T) {
+func TestValidateSetting_ReturnsInvalidForOptionNotInList(t *testing.T) {
 	definition := definitionOf(automationsetting.KindOption, true)
 	definition.Options = []automationsetting.Option{{ID: "is", DisplayName: "is"}}
 
@@ -90,11 +90,12 @@ func TestValidate_ReturnsInvalidForOptionNotInList(t *testing.T) {
 	}
 }
 
-func TestValidate_ReturnsInvalidForBadChoices(t *testing.T) {
+func TestValidateSetting_ReturnsInvalidForBadChoices(t *testing.T) {
 	badChoiceLists := map[string]string{
 		"duplicate IDs": `[{"id":"c1","text":"!a1"},{"id":"c1","text":"!a2"}]`,
 		"missing ID":    `[{"text":"!a1"}]`,
 		"blank text":    `[{"id":"c1","text":"  "}]`,
+		"repeated text": `[{"id":"c1","text":"!a1"},{"id":"c2","text":"!A1 "}]`,
 	}
 
 	for description, rawJSON := range badChoiceLists {
@@ -105,13 +106,49 @@ func TestValidate_ReturnsInvalidForBadChoices(t *testing.T) {
 	}
 }
 
-func TestValidate_IgnoresValuesWithoutDefinitions(t *testing.T) {
-	values := automationsetting.Values{"droppedSetting": json.RawMessage(`"anything"`)}
+func TestValidateSetting_TellsBlankAndRepeatedChoicesApart(t *testing.T) {
+	definition := definitionOf(automationsetting.KindChoiceList, true)
 
-	err := values.Validate(nil)
+	blankErr := validate(`[{"id":"c1","text":" "}]`, definition)
+	repeatedErr := validate(`[{"id":"c1","text":"!a1"},{"id":"c2","text":"!A1"}]`, definition)
+
+	if !errors.Is(blankErr, automationsetting.ErrBlankChoice) || !errors.Is(repeatedErr, automationsetting.ErrRepeatedChoice) {
+		t.Errorf("got errors %v and %v, want ErrBlankChoice and ErrRepeatedChoice", blankErr, repeatedErr)
+	}
+}
+
+func TestValidateSetting_ReturnsMissingForTemplateOfOnlySpaces(t *testing.T) {
+	err := validate(`[{"text":"   "}]`, definitionOf(automationsetting.KindTemplate, true))
+
+	if !errors.Is(err, automationsetting.ErrSettingMissing) {
+		t.Errorf("got error %v, want ErrSettingMissing", err)
+	}
+}
+
+func TestValidateSetting_ReturnsTooLongPastMaximumLength(t *testing.T) {
+	textDefinition := definitionOf(automationsetting.KindText, true)
+	textDefinition.MaximumLength = 3
+	templateDefinition := definitionOf(automationsetting.KindTemplate, true)
+	templateDefinition.MaximumLength = 3
+
+	textErr := validate(`"abcd"`, textDefinition)
+	templateErr := validate(`[{"text":"ab"},{"text":"cd"}]`, templateDefinition)
+
+	if !errors.Is(textErr, automationsetting.ErrSettingTooLong) || !errors.Is(templateErr, automationsetting.ErrSettingTooLong) {
+		t.Errorf("got errors %v and %v, want ErrSettingTooLong", textErr, templateErr)
+	}
+}
+
+func TestValidateSetting_CountsCharactersAndLeavesOutVariables(t *testing.T) {
+	definition := definitionOf(automationsetting.KindTemplate, true)
+	definition.MaximumLength = 3
+
+	// Each "é" is two bytes but one character, and the variable's value
+	// isn't known yet, so this is three characters.
+	err := validate(`[{"text":"éé"},{"variable":{"source":"trigger","id":"redeemerDisplayName"}},{"text":"é"}]`, definition)
 
 	if err != nil {
-		t.Errorf("got error %v", err)
+		t.Errorf("got error %v, want the template to fit", err)
 	}
 }
 
@@ -121,20 +158,23 @@ func TestVariableReferences_CollectsFromVariableAndTemplateSettings(t *testing.T
 		"message":  json.RawMessage(`[{"text":"You rolled "},{"variable":{"source":"step","stepId":"s1","id":"roll"}}]`),
 		"note":     json.RawMessage(`"plain text"`),
 	}
-	definitions := []automationsetting.Definition{
-		{ID: "onlyFrom", Kind: automationsetting.KindVariable},
-		{ID: "message", Kind: automationsetting.KindTemplate},
-		{ID: "note", Kind: automationsetting.KindText},
-		{ID: "unset", Kind: automationsetting.KindVariable},
+	wantedReferences := map[string][]automationsetting.VariableReference{
+		"onlyFrom": {{Source: automationsetting.VariableSourceTrigger, ID: "redeemerUserId"}},
+		"message":  {{Source: automationsetting.VariableSourceStep, StepID: "s1", ID: "roll"}},
+		"note":     nil,
+		"unset":    nil,
+	}
+	kinds := map[string]automationsetting.Kind{
+		"onlyFrom": automationsetting.KindVariable,
+		"message":  automationsetting.KindTemplate,
+		"note":     automationsetting.KindText,
+		"unset":    automationsetting.KindVariable,
 	}
 
-	references, err := values.VariableReferences(definitions)
-
-	wantedReferences := []automationsetting.VariableReference{
-		{Source: automationsetting.VariableSourceTrigger, ID: "redeemerUserId"},
-		{Source: automationsetting.VariableSourceStep, StepID: "s1", ID: "roll"},
-	}
-	if err != nil || !slices.Equal(references, wantedReferences) {
-		t.Errorf("got %v, error %v; want %v", references, err, wantedReferences)
+	for settingID, wanted := range wantedReferences {
+		references, err := values.VariableReferences(automationsetting.Definition{ID: settingID, Kind: kinds[settingID]})
+		if err != nil || !slices.Equal(references, wanted) {
+			t.Errorf("setting %q: got %v, error %v; want %v", settingID, references, err, wanted)
+		}
 	}
 }

@@ -29,9 +29,17 @@ func (randomNumberStep) Definition() step.Definition {
 	return step.Definition{
 		ID:          RandomNumberStepID,
 		DisplayName: "Roll a random number",
+		Description: "Pick a number in a range, like rolling a die.",
+		Group:       numbersAndChoicesGroup,
+		Sentence: automationsetting.Sentence{
+			automationsetting.Words("Roll a random number from"),
+			automationsetting.Setting(LowestSetting),
+			automationsetting.Words("to"),
+			automationsetting.Setting(HighestSetting),
+		},
 		Settings: []automationsetting.Definition{
-			{ID: LowestSetting, DisplayName: "Lowest", Kind: automationsetting.KindWholeNumber, IsRequired: true},
-			{ID: HighestSetting, DisplayName: "Highest", Kind: automationsetting.KindWholeNumber, IsRequired: true},
+			{ID: LowestSetting, DisplayName: "Lowest", Kind: automationsetting.KindWholeNumber, IsRequired: true, Placeholder: "choose the lowest number"},
+			{ID: HighestSetting, DisplayName: "Highest", Kind: automationsetting.KindWholeNumber, IsRequired: true, Placeholder: "choose the highest number"},
 		},
 	}
 }
@@ -40,7 +48,7 @@ func (randomNumberStep) Outcomes(automationsetting.Values) ([]step.Outcome, erro
 	return []step.Outcome{{
 		ID:          step.DefaultOutcomeID,
 		DisplayName: "Done",
-		Variables:   []trigger.VariableDefinition{{ID: RandomNumberVariable, DisplayName: "Random number"}},
+		Variables:   []trigger.VariableDefinition{{ID: RandomNumberVariable, DisplayName: "Random number", IsCommon: true}},
 	}}, nil
 }
 

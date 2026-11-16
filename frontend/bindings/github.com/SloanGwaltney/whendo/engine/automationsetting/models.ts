@@ -6,8 +6,161 @@
 import * as json$0 from "../../../../../encoding/json/models.js";
 
 /**
+ * Definition describes one setting a trigger or step takes.
+ */
+export interface Definition {
+    "id": string;
+    "displayName": string;
+    "kind": Kind;
+    "isRequired": boolean;
+
+    /**
+     * Options lists the allowed values of a KindOption setting. Other kinds
+     * leave it empty.
+     */
+    "options": Option[] | null;
+
+    /**
+     * Placeholder is what the designer shows while the setting is empty.
+     * For a required setting it's an instruction such as "pick a redeem",
+     * so problems can reuse it: "needs you to pick a redeem". An optional
+     * setting's says what empty means instead, such as "empty".
+     */
+    "placeholder": string;
+
+    /**
+     * MaximumLength is the most characters a KindText or KindTemplate
+     * setting may hold, or 0 for no limit. For a template it counts only
+     * the template's own text, since variables' values aren't known until
+     * it runs.
+     */
+    "maximumLength": number;
+}
+
+/**
+ * Kind tells the designer which control to show for a setting and the
+ * engine how to read its value. Integrations can add their own kinds, named
+ * with their prefix like trigger IDs, so they can't collide with the
+ * engine's.
+ */
+export enum Kind {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    /**
+     * KindText is plain text.
+     */
+    KindText = "text",
+
+    /**
+     * KindTemplate is text with variables inserted. Its value is a Template.
+     */
+    KindTemplate = "template",
+
+    /**
+     * KindWholeNumber is an integer.
+     */
+    KindWholeNumber = "wholeNumber",
+
+    /**
+     * KindDuration is a length of time, stored in milliseconds.
+     */
+    KindDuration = "duration",
+
+    /**
+     * KindVariable is a reference to one variable. Its value is a
+     * VariableReference.
+     */
+    KindVariable = "variable",
+
+    /**
+     * KindOption is the ID of one of the Options the setting's definition
+     * lists.
+     */
+    KindOption = "option",
+
+    /**
+     * KindChoiceList is a list of Choices.
+     */
+    KindChoiceList = "choiceList",
+};
+
+/**
+ * Option is one of the fixed values a KindOption setting allows.
+ */
+export interface Option {
+    "id": string;
+    "displayName": string;
+}
+
+/**
+ * Sentence is how the designer shows a trigger, a step or an outcome: as
+ * words with its settings in place, so an automation reads like what it
+ * does. See docs/design/automation-engine.md#what-definitions-tell-the-designer.
+ */
+export type Sentence = SentencePart[] | null;
+
+/**
+ * SentencePart is one piece of a sentence the designer shows, such as "Say
+ * in chat" followed by the message setting. Exactly one field is set.
+ */
+export interface SentencePart {
+    /**
+     * Words are the sentence's own fixed text.
+     */
+    "words"?: string;
+
+    /**
+     * SettingID places a setting's value in the sentence, where the user
+     * clicks to edit it.
+     */
+    "settingId"?: string;
+
+    /**
+     * UserText is text the user wrote, such as a choice in "If they type
+     * !a1". The designer sets it apart from the fixed words, but it isn't
+     * editable there.
+     */
+    "userText"?: string;
+}
+
+/**
  * Values holds the values of a trigger's or step's settings, keyed by
  * setting ID, exactly as they're saved in an automation's file. The
  * accessors read a value as a particular kind.
  */
 export type Values = { [_ in string]?: json$0.RawMessage } | null;
+
+/**
+ * VariableReference points to one variable by where it comes from and its
+ * ID, never by its display name, so renaming a display name never breaks an
+ * automation. StepID identifies the step for VariableSourceStep, so two steps
+ * of the same type don't conflict; it's empty for VariableSourceTrigger.
+ */
+export interface VariableReference {
+    "source": VariableSource;
+    "stepId"?: string;
+    "id": string;
+}
+
+/**
+ * VariableSource says where a referenced variable comes from.
+ */
+export enum VariableSource {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    /**
+     * VariableSourceTrigger is a variable the automation's trigger provides.
+     */
+    VariableSourceTrigger = "trigger",
+
+    /**
+     * VariableSourceStep is a variable an earlier step provides.
+     */
+    VariableSourceStep = "step",
+};
