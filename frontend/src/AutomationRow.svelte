@@ -31,6 +31,11 @@
           <span class="badge is-warning">Needs fixing</span>
           <span>{summary.problem}</span>
         </span>
+      {:else if summary.triggerNote}
+        <span class="problem">
+          <span class="badge is-note">Good to know</span>
+          <span>{summary.triggerNote}</span>
+        </span>
       {/if}
     {/if}
   </div>
@@ -105,6 +110,11 @@
   .badge.is-warning {
     background: var(--color-warning-soft);
     color: var(--color-warning);
+  }
+
+  .badge.is-note {
+    background: var(--color-surface-raised);
+    color: var(--color-text-muted);
   }
 
   .badge.is-danger {

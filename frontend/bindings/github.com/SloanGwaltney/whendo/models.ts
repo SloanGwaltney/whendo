@@ -25,6 +25,13 @@ export interface AutomationSummary {
     "triggerId": string;
     "problem": string;
     "isUnreadable": boolean;
+
+    /**
+     * TriggerNote is something good to know about the trigger, such as a
+     * placeholder redeem or one deleted in Twitch. It's empty when there's
+     * nothing to know, or when Problem already explains a bigger problem.
+     */
+    "triggerNote": string;
 }
 
 /**

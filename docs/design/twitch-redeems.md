@@ -102,6 +102,7 @@ A streamer without channel points yet, or one planning a redeem they haven't mad
 - **It's a special reward ID,** `whendo.placeholder`, stored in the setting like any other. Twitch's reward IDs are UUIDs, so a real redemption can never match it.
 - **Test runs need nothing new.** The redeem trigger's test values take the reward from the automation's settings, so they match its own filter as always.
 - **It's never a must-fix problem.** Must-fix problems block test runs, and testing is the point of the placeholder. Instead it's a **good to know** problem: "This uses a placeholder redeem, so it only runs when you test it. Pick your real redeem once it's ready."
+- **Home shows it too,** on the automation's row, so automations still waiting for their real redeem are easy to find once channel points are turned on.
 - **The trigger reports it.** It's about the automation's own settings, not the world outside it, so it belongs in the engine's [check](automation-engine.md#checking-automations). Triggers gain an optional way to add problems about their own settings, which the Twitch redeem trigger uses for this.
 - **Sample automations can use it,** so an account without channel points can still start from a sample that needs a redeem. See [MVP UI Design](mvp-ui.md#home).
 

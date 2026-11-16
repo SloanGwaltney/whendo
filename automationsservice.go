@@ -72,6 +72,10 @@ type AutomationSummary struct {
 	TriggerID    string `json:"triggerId"`
 	Problem      string `json:"problem"`
 	IsUnreadable bool   `json:"isUnreadable"`
+	// TriggerNote is something good to know about the trigger, such as a
+	// placeholder redeem or one deleted in Twitch. It's empty when there's
+	// nothing to know, or when Problem already explains a bigger problem.
+	TriggerNote string `json:"triggerNote"`
 }
 
 // AutomationsService connects the automation engine to the UI. It loads
@@ -89,6 +93,9 @@ type AutomationsService struct {
 	// runHistoryRetentionDays gives how long run history is kept, which the
 	// user can change while Whendo runs.
 	runHistoryRetentionDays func() int
+	// knownRewards tells which redeems were deleted in Twitch, so checks can
+	// point them out.
+	knownRewards *knownRewards
 
 	// mutex guards the maps. They hold every saved automation, including
 	// invalid ones the runner refused, so the UI can list them with their
@@ -99,8 +106,9 @@ type AutomationsService struct {
 	unreadableFileReasons map[string]string
 }
 
-func newAutomationsService(catalog *automation.Catalog, automationStore *automation.Store, runHistoryStore *runhistory.Store, runHistoryRetentionDays func() int, currentStreamer func() (trigger.Streamer, error), logger *slog.Logger) *AutomationsService {
+func newAutomationsService(catalog *automation.Catalog, automationStore *automation.Store, runHistoryStore *runhistory.Store, runHistoryRetentionDays func() int, knownRewards *knownRewards, currentStreamer func() (trigger.Streamer, error), logger *slog.Logger) *AutomationsService {
 	service := &AutomationsService{
+		knownRewards:            knownRewards,
 		catalog:                 catalog,
 		currentStreamer:         currentStreamer,
 		runHistoryRetentionDays: runHistoryRetentionDays,
@@ -179,13 +187,18 @@ func (service *AutomationsService) ListAutomations() []AutomationSummary {
 	defer service.mutex.Unlock()
 	summaries := make([]AutomationSummary, 0, len(service.automationsByID)+len(service.unreadableFileReasons))
 	for _, savedAutomation := range service.automationsByID {
-		summaries = append(summaries, AutomationSummary{
+		problem := service.problemsByID[savedAutomation.ID]
+		summary := AutomationSummary{
 			ID:        savedAutomation.ID,
 			Name:      savedAutomation.Name,
 			IsEnabled: savedAutomation.IsEnabled,
 			TriggerID: savedAutomation.Trigger.ID,
-			Problem:   service.problemsByID[savedAutomation.ID],
-		})
+			Problem:   problem,
+		}
+		if problem == "" {
+			summary.TriggerNote = service.triggerNote(savedAutomation)
+		}
+		summaries = append(summaries, summary)
 	}
 	for fileName, reason := range service.unreadableFileReasons {
 		summaries = append(summaries, AutomationSummary{ID: strings.TrimSuffix(fileName, automationFileExtension), Name: fileName, Problem: reason, IsUnreadable: true})
@@ -194,6 +207,40 @@ func (service *AutomationsService) ListAutomations() []AutomationSummary {
 		return cmp.Compare(strings.ToLower(first.Name), strings.ToLower(second.Name))
 	})
 	return summaries
+}
+
+// triggerNote returns the first good to know problem about an automation's
+// trigger, for Home to show.
+func (service *AutomationsService) triggerNote(savedAutomation automation.Automation) string {
+	for _, problem := range service.check(savedAutomation).Problems {
+		if problem.Level == automation.ProblemLevelGoodToKnow && problem.Subject == automation.ProblemSubjectTrigger {
+			return problem.Message
+		}
+	}
+	return ""
+}
+
+// check checks an automation, adding the problems that depend on Twitch,
+// which the engine's check leaves out.
+func (service *AutomationsService) check(checkedAutomation automation.Automation) automation.Report {
+	report := automation.Check(checkedAutomation, service.catalog)
+	missingProblem, isMissing := service.knownRewards.missingRedeemProblem(checkedAutomation)
+	if isMissing {
+		report.Problems = insertAfterTriggerProblems(report.Problems, missingProblem)
+	}
+	return report
+}
+
+// insertAfterTriggerProblems keeps problems in reading order: the
+// automation's own, then the trigger's, then each step's.
+func insertAfterTriggerProblems(problems []automation.Problem, triggerProblem automation.Problem) []automation.Problem {
+	insertIndex := 0
+	for index, problem := range problems {
+		if problem.Subject == automation.ProblemSubjectAutomation || problem.Subject == automation.ProblemSubjectTrigger {
+			insertIndex = index + 1
+		}
+	}
+	return slices.Insert(problems, insertIndex, triggerProblem)
 }
 
 // GetAutomation returns one saved automation.
@@ -224,7 +271,7 @@ func (service *AutomationsService) Catalog() CatalogDefinitions {
 // reports its problems and what each step can use. The designer calls it as
 // the user edits, so the rules live only in the engine.
 func (service *AutomationsService) CheckAutomation(draft automation.Automation) automation.Report {
-	return automation.Check(draft, service.catalog)
+	return service.check(draft)
 }
 
 // SaveAutomation saves a new or changed automation. A valid one is put to

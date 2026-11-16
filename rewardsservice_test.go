@@ -19,7 +19,7 @@ func (source fixedRewardSource) List(context.Context) ([]twitchrewards.Reward, e
 }
 
 func TestListRewards_ExplainsAnAccountWithoutChannelPointsRatherThanFailing(t *testing.T) {
-	service := &RewardsService{source: fixedRewardSource{err: twitchrewards.ErrNoChannelPoints}}
+	service := &RewardsService{known: &knownRewards{}, source: fixedRewardSource{err: twitchrewards.ErrNoChannelPoints}}
 
 	rewardList, err := service.ListRewards(context.Background())
 
@@ -30,7 +30,7 @@ func TestListRewards_ExplainsAnAccountWithoutChannelPointsRatherThanFailing(t *t
 
 func TestListRewards_ReturnsTheRewards(t *testing.T) {
 	rewards := []twitchrewards.Reward{{ID: "hydrate", Title: "Hydrate"}}
-	service := &RewardsService{source: fixedRewardSource{rewards: rewards}}
+	service := &RewardsService{known: &knownRewards{}, source: fixedRewardSource{rewards: rewards}}
 
 	rewardList, err := service.ListRewards(context.Background())
 
@@ -41,7 +41,7 @@ func TestListRewards_ReturnsTheRewards(t *testing.T) {
 
 func TestListRewards_ReturnsOtherErrors(t *testing.T) {
 	twitchDown := errors.New("twitch is down")
-	service := &RewardsService{source: fixedRewardSource{err: twitchDown}}
+	service := &RewardsService{known: &knownRewards{}, source: fixedRewardSource{err: twitchDown}}
 
 	_, err := service.ListRewards(context.Background())
 

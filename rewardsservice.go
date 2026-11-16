@@ -19,16 +19,22 @@ type RewardList struct {
 // streamer's channel point rewards. See docs/design/twitch-redeems.md.
 type RewardsService struct {
 	source twitchrewards.Source
+	// known remembers the last list that loaded, for missing redeems.
+	known *knownRewards
 }
 
 // ListRewards returns every reward the account has, cheapest first.
 func (service *RewardsService) ListRewards(ctx context.Context) (RewardList, error) {
 	rewards, err := service.source.List(ctx)
 	if errors.Is(err, twitchrewards.ErrNoChannelPoints) {
+		service.known.forget()
 		return RewardList{HasChannelPoints: false, Rewards: []twitchrewards.Reward{}}, nil
 	}
+	// Any other failure keeps the last list, since Twitch being unreachable
+	// says nothing about which redeems exist.
 	if err != nil {
 		return RewardList{}, err
 	}
+	service.known.remember(rewards)
 	return RewardList{HasChannelPoints: true, Rewards: rewards}, nil
 }

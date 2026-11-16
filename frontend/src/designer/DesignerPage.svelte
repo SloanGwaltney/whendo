@@ -1,6 +1,6 @@
 <script lang="ts">
   import {Events} from "@wailsio/runtime";
-  import {tick} from "svelte";
+  import {tick, untrack} from "svelte";
   import {RunEnded} from "../../bindings/events";
   import {AutomationsService} from "../../bindings/github.com/SloanGwaltney/whendo";
   import type {CatalogDefinitions} from "../../bindings/github.com/SloanGwaltney/whendo";
@@ -12,6 +12,7 @@
   import type {RunRecord} from "../../bindings/github.com/SloanGwaltney/whendo/engine/runner";
   import Switch from "../Switch.svelte";
   import TestRunDialog from "../TestRunDialog.svelte";
+  import {rewardsState} from "../rewards.svelte";
   import Toast from "../Toast.svelte";
   import {buildDesignerView, provideDesignerActions, stepElementID, triggerElementID, triggerOwnerID} from "./designerModel";
   import DesignerProblems from "./DesignerProblems.svelte";
@@ -79,6 +80,16 @@
   let latestCheckNumber = 0;
 
   loadAutomation();
+
+  // Whether the trigger's redeem was deleted in Twitch depends on the last
+  // list of redeems, which loads separately, so the draft is checked again
+  // when a list arrives.
+  $effect(() => {
+    if (rewardsState.list === null) {
+      return;
+    }
+    untrack(() => checkDraft());
+  });
 
   async function loadAutomation(): Promise<void> {
     try {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import {Events} from "@wailsio/runtime";
+  import {untrack} from "svelte";
   import {RunEnded} from "../bindings/events";
   import {AutomationsService} from "../bindings/github.com/SloanGwaltney/whendo";
   import type {AutomationSummary, CatalogDefinitions} from "../bindings/github.com/SloanGwaltney/whendo";
@@ -9,6 +10,7 @@
   import AutomationRow from "./AutomationRow.svelte";
   import Dialog from "./Dialog.svelte";
   import Page from "./Page.svelte";
+  import {loadRewardsIfNeeded, rewardsState} from "./rewards.svelte";
   import TestRunDialog from "./TestRunDialog.svelte";
   import Toast from "./Toast.svelte";
 
@@ -37,6 +39,21 @@
   const testedTriggerDefinition = $derived((catalog?.triggers ?? []).find((definition) => definition.id === automationToTest?.triggerId) ?? null);
 
   loadPage();
+  // Notes about redeems deleted in Twitch need a list of redeems.
+  loadRewardsIfNeeded();
+
+  // The automations' notes about redeems depend on the last list of redeems,
+  // which loads separately, so the automations are reloaded once it does.
+  $effect(() => {
+    if (rewardsState.list === null) {
+      return;
+    }
+    untrack(() => {
+      loadAutomations().catch((error: unknown) => {
+        errorMessage = `Couldn't reload your automations: ${error}`;
+      });
+    });
+  });
 
   async function loadPage(): Promise<void> {
     try {

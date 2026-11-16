@@ -46,7 +46,7 @@ func newServiceFixture(t *testing.T, prepareFolder func(automationFolder string)
 		t.Fatalf("NewCatalog returned an error: %v", err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	service := newAutomationsService(catalog, automation.NewStore(automationFolder), runhistory.NewStore(filepath.Join(folder, runHistoryFolderName), logger), func() int { return runhistory.DefaultRetentionDays }, func() (trigger.Streamer, error) { return testStreamer, nil }, logger)
+	service := newAutomationsService(catalog, automation.NewStore(automationFolder), runhistory.NewStore(filepath.Join(folder, runHistoryFolderName), logger), func() int { return runhistory.DefaultRetentionDays }, &knownRewards{}, func() (trigger.Streamer, error) { return testStreamer, nil }, logger)
 	ctx, cancel := context.WithCancel(context.Background())
 	err = service.ServiceStartup(ctx, application.ServiceOptions{})
 	if err != nil {

@@ -68,7 +68,10 @@ func main() {
 		Account:    twitchSession,
 		HTTPClient: twitchHTTPClient,
 	})
-	automationsService, err := newAutomationsServiceForApp(folder, runHistoryStore, settingsService.runHistoryRetentionDays, twitchSession, twitchClient)
+	// Both services share what the last list of redeems said, so automations
+	// can be checked for redeems deleted in Twitch.
+	knownRewards := &knownRewards{}
+	automationsService, err := newAutomationsServiceForApp(folder, runHistoryStore, settingsService.runHistoryRetentionDays, knownRewards, twitchSession, twitchClient)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -99,7 +102,7 @@ func main() {
 			application.NewService(automationsService),
 			application.NewService(&TwitchEventsService{listener: twitchListener}),
 			application.NewService(settingsService),
-			application.NewService(&RewardsService{source: newRewardSource(twitchClient)}),
+			application.NewService(&RewardsService{source: newRewardSource(twitchClient), known: knownRewards}),
 		},
 		// Two copies would each run every automation and use up Twitch's
 		// connection limit, so a second launch brings the first forward.
@@ -160,7 +163,7 @@ func newAppCatalog(twitchClient *twitchapi.Client) (*automation.Catalog, error) 
 // newAutomationsServiceForApp builds the automation engine with every
 // trigger and step Whendo offers, storing automations in Whendo's data
 // folder.
-func newAutomationsServiceForApp(folder string, runHistoryStore *runhistory.Store, runHistoryRetentionDays func() int, twitchSession *twitchauth.Session, twitchClient *twitchapi.Client) (*AutomationsService, error) {
+func newAutomationsServiceForApp(folder string, runHistoryStore *runhistory.Store, runHistoryRetentionDays func() int, knownRewards *knownRewards, twitchSession *twitchauth.Session, twitchClient *twitchapi.Client) (*AutomationsService, error) {
 	catalog, err := newAppCatalog(twitchClient)
 	if err != nil {
 		return nil, err
@@ -170,6 +173,7 @@ func newAutomationsServiceForApp(folder string, runHistoryStore *runhistory.Stor
 		automation.NewStore(filepath.Join(folder, automationsFolderName)),
 		runHistoryStore,
 		runHistoryRetentionDays,
+		knownRewards,
 		func() (trigger.Streamer, error) { return streamerFromSession(twitchSession) },
 		slog.Default(),
 	), nil
