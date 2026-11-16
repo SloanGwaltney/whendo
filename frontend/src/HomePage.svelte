@@ -7,7 +7,8 @@
   import Page from "./Page.svelte";
 
   // The automation list. See docs/design/mvp-ui.md#home. The sample gallery
-  // and opening an automation in the designer come with the designer.
+  // comes later.
+  let {onOpenAutomation}: {onOpenAutomation: (automationID: string) => void} = $props();
 
   let summaries = $state<AutomationSummary[]>([]);
   let catalog = $state<CatalogDefinitions | null>(null);
@@ -115,6 +116,7 @@
           <AutomationRow
             {summary}
             triggerName={triggerNamesByID.get(summary.triggerId) ?? ""}
+            onOpen={() => onOpenAutomation(summary.id)}
             onToggle={() => toggle(summary)}
             onDelete={() => (automationToDelete = summary)}
           />

@@ -2,10 +2,11 @@
   import type {AutomationSummary} from "../bindings/github.com/SloanGwaltney/whendo";
   import Switch from "./Switch.svelte";
 
-  let {summary, triggerName, onToggle, onDelete}: {
+  let {summary, triggerName, onOpen, onToggle, onDelete}: {
     summary: AutomationSummary;
     // The trigger's name, or empty when the automation has none yet.
     triggerName: string;
+    onOpen: () => void;
     onToggle: () => void;
     onDelete: () => void;
   } = $props();
@@ -15,13 +16,14 @@
 
 <li class="automation-row">
   <div class="details">
-    <span class="name">{summary.name}</span>
     {#if summary.isUnreadable}
+      <span class="name">{summary.name}</span>
       <span class="problem">
         <span class="badge is-danger">Couldn't be read</span>
         <span class="is-selectable">{summary.problem}</span>
       </span>
     {:else}
+      <button type="button" class="name is-openable" onclick={onOpen}>{summary.name}</button>
       <span class="trigger">{triggerName ? `When: ${triggerName}` : "No trigger yet"}</span>
       {#if needsFixing}
         <span class="problem">
@@ -64,9 +66,17 @@
   }
 
   .name {
+    align-self: flex-start;
     font-weight: 600;
     font-size: 15px;
+    text-align: left;
     overflow-wrap: anywhere;
+  }
+
+  .name.is-openable:hover {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 
   .trigger {

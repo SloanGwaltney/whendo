@@ -1,6 +1,7 @@
 <script lang="ts">
   import {startPageId} from "./navigation";
   import type {PageId} from "./navigation";
+  import DesignerPage from "./designer/DesignerPage.svelte";
   import HomePage from "./HomePage.svelte";
   import PlaceholderPage from "./PlaceholderPage.svelte";
   import SettingsPage from "./SettingsPage.svelte";
@@ -10,13 +11,25 @@
   let {accountLogin}: {accountLogin: string} = $props();
 
   let currentPageId: PageId = $state(startPageId);
+  // The automation open in the designer, which opens from Home; empty when
+  // none is.
+  let openAutomationID = $state("");
+
+  function navigate(pageId: PageId): void {
+    currentPageId = pageId;
+    openAutomationID = "";
+  }
 </script>
 
 <div class="shell">
-  <Sidebar {currentPageId} {accountLogin} onNavigate={(pageId) => (currentPageId = pageId)}/>
+  <Sidebar {currentPageId} {accountLogin} onNavigate={navigate}/>
   <main>
-    {#if currentPageId === "home"}
-      <HomePage/>
+    {#if currentPageId === "home" && openAutomationID}
+      {#key openAutomationID}
+        <DesignerPage automationID={openAutomationID} onClose={() => (openAutomationID = "")}/>
+      {/key}
+    {:else if currentPageId === "home"}
+      <HomePage onOpenAutomation={(automationID) => (openAutomationID = automationID)}/>
     {:else if currentPageId === "redeems"}
       <PlaceholderPage title="Redeems" futureContents="Your channel point redeems will be here."/>
     {:else if currentPageId === "runHistory"}
