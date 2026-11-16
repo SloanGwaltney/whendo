@@ -5,6 +5,7 @@
   import type {Definition as SettingDefinition, VariableReference} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
   import type {DesignerView} from "./designerModel";
   import OptionList from "./OptionList.svelte";
+  import TemplateEditor from "./TemplateEditor.svelte";
   import VariablePicker from "./VariablePicker.svelte";
 
   // The popover's contents for editing one setting. Changes apply as they're
@@ -55,41 +56,45 @@
   const isEngineKind = $derived((Object.values(Kind) as string[]).includes(definition.kind));
 </script>
 
-<span class="title">{definition.displayName}</span>
-
-{#if definition.kind === Kind.KindOption}
-  <OptionList
-    options={(definition.options ?? []).map((option) => ({id: option.id, label: option.displayName, isSelected: option.id === value}))}
-    onChoose={(optionID) => {
-      onChange(optionID);
-      onDone();
-    }}
-  />
-{:else if definition.kind === Kind.KindVariable}
-  <VariablePicker
-    {availableVariables}
-    selected={(value as VariableReference | null) ?? null}
-    {view}
-    onPick={(reference) => {
-      onChange(reference);
-      onDone();
-    }}
-  />
-{:else if definition.kind === Kind.KindWholeNumber}
-  <input class="field" type="number" step="1" value={value ?? ""} oninput={updateWholeNumber} onkeydown={finishOnEnter} data-autofocus/>
-{:else if definition.kind === Kind.KindDuration}
-  <div class="row">
-    <input class="field" type="number" min="1" step="1" bind:value={durationAmount} oninput={updateDuration} onkeydown={finishOnEnter} aria-label="How many" data-autofocus/>
-    <select class="field unit" bind:value={durationUnitMilliseconds} onchange={updateDuration} aria-label="Unit">
-      <option value={millisecondsPerSecond}>seconds</option>
-      <option value={millisecondsPerMinute}>minutes</option>
-    </select>
-  </div>
+{#if definition.kind === Kind.KindTemplate}
+  <!-- Shows its own title, since it's laid out around the text. -->
+  <TemplateEditor {definition} {value} {availableVariables} {view} {onChange} {onDone}/>
 {:else}
-  <input class="field" value={value ?? ""} placeholder={definition.placeholder} oninput={updateText} onkeydown={finishOnEnter} data-autofocus/>
-  {#if !isEngineKind}
-    <!-- An integration's own kind, such as a reward, until it has a picker. -->
-    <p class="help">Whendo can't list these yet, so type the value.</p>
+  <span class="title">{definition.displayName}</span>
+  {#if definition.kind === Kind.KindOption}
+    <OptionList
+      options={(definition.options ?? []).map((option) => ({id: option.id, label: option.displayName, isSelected: option.id === value}))}
+      onChoose={(optionID) => {
+        onChange(optionID);
+        onDone();
+      }}
+    />
+  {:else if definition.kind === Kind.KindVariable}
+    <VariablePicker
+      {availableVariables}
+      selected={(value as VariableReference | null) ?? null}
+      {view}
+      onPick={(reference) => {
+        onChange(reference);
+        onDone();
+      }}
+    />
+  {:else if definition.kind === Kind.KindWholeNumber}
+    <input class="field" type="number" step="1" value={value ?? ""} oninput={updateWholeNumber} onkeydown={finishOnEnter} data-autofocus/>
+  {:else if definition.kind === Kind.KindDuration}
+    <div class="row">
+      <input class="field" type="number" min="1" step="1" bind:value={durationAmount} oninput={updateDuration} onkeydown={finishOnEnter} aria-label="How many" data-autofocus/>
+      <select class="field unit" bind:value={durationUnitMilliseconds} onchange={updateDuration} aria-label="Unit">
+        <option value={millisecondsPerSecond}>seconds</option>
+        <option value={millisecondsPerMinute}>minutes</option>
+      </select>
+    </div>
+  {:else}
+    <input class="field" value={value ?? ""} placeholder={definition.placeholder} oninput={updateText} onkeydown={finishOnEnter} data-autofocus/>
+    {#if !isEngineKind}
+      <!-- An integration's own kind, such as a reward, until it has a picker. -->
+      <p class="help">Whendo can't list these yet, so type the value.</p>
+    {/if}
   {/if}
 {/if}
 

@@ -4,6 +4,7 @@
   import type {CatalogDefinitions} from "../../bindings/github.com/SloanGwaltney/whendo";
   import {AfterBranch, ProblemLevel, ProblemSubject} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
   import type {Automation, Problem, Report} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
+  import {Kind} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
   import type {Values} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
   import Switch from "../Switch.svelte";
   import Toast from "../Toast.svelte";
@@ -163,6 +164,18 @@
       definitions: view.stepDefinitionsByType.get(location.step.type)?.settings ?? [],
       availableVariables: view.report.steps?.[ownerID]?.availableVariables ?? [],
     };
+  }
+
+  // The step picker and message editor need the room.
+  function isWidePopover(popover: OpenPopover): boolean {
+    if (popover.kind === "stepPicker") {
+      return true;
+    }
+    if (popover.kind !== "setting") {
+      return false;
+    }
+    const definition = settingOwner(popover.ownerID)?.definitions.find((candidate) => candidate.id === popover.settingID);
+    return definition?.kind === Kind.KindTemplate;
   }
 
   function changeSetting(settings: NonNullable<Values>, settingID: string, newValue: unknown): void {
@@ -369,7 +382,7 @@
   {@const popover = openPopover}
   <!-- Keyed, so each value gets a fresh editor rather than the last one's. -->
   {#key popover.anchor}
-  <Popover anchor={popover.anchor} isWide={popover.kind === "stepPicker"} onClose={() => (openPopover = null)}>
+  <Popover anchor={popover.anchor} isWide={isWidePopover(popover)} onClose={() => (openPopover = null)}>
     {#if popover.kind === "setting"}
       {@const owner = settingOwner(popover.ownerID)}
       {@const definition = owner?.definitions.find((candidate) => candidate.id === popover.settingID)}

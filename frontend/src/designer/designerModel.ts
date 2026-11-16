@@ -62,9 +62,9 @@ export function useDesignerActions(): DesignerActions | undefined {
   return getContext<DesignerActions | undefined>(designerActionsKey);
 }
 
-// Kinds the designer can edit so far. Messages and choice lists get their
-// editors next.
-const editableKinds = new Set<string>([Kind.KindText, Kind.KindWholeNumber, Kind.KindDuration, Kind.KindOption, Kind.KindVariable]);
+// Kinds the designer can edit so far. Choice lists get their editor once a
+// step uses them.
+const editableKinds = new Set<string>([Kind.KindText, Kind.KindTemplate, Kind.KindWholeNumber, Kind.KindDuration, Kind.KindOption, Kind.KindVariable]);
 
 // isEditableKind is also true for kinds an integration adds, such as a
 // reward, which are edited as text until they have their own pickers.
