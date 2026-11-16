@@ -30,6 +30,10 @@ type Definition struct {
 	// followed by the message setting.
 	Sentence automationsetting.Sentence     `json:"sentence"`
 	Settings []automationsetting.Definition `json:"settings"`
+	// RequiredTriggerID is the trigger an automation must start with for
+	// the step to work, because the step acts on the event that started it,
+	// such as refunding a redemption. Empty means any trigger.
+	RequiredTriggerID string `json:"requiredTriggerId"`
 }
 
 // Outcome is one way a step can finish. Steps with more than one outcome
@@ -86,6 +90,31 @@ type Step interface {
 	// Run performs the step. An error fails the run. The context is cancelled
 	// when Whendo shuts down, so a step that waits must stop when it is.
 	Run(ctx context.Context, input Input) (Result, error)
+}
+
+// Noter is a step that has something the streamer should know about how
+// it's used, even though the automation is fine, such as refunding
+// redemptions of a redeem that can't be refunded. Notes are never must-fix:
+// rules that make settings invalid belong in the setting definitions.
+type Noter interface {
+	NoteStep(usage Usage) []Note
+}
+
+// Usage is where a step is used: its own settings and the trigger the
+// automation starts with.
+type Usage struct {
+	Settings        automationsetting.Values
+	TriggerID       string
+	TriggerSettings automationsetting.Values
+}
+
+// Note is one thing worth knowing about how a step is used, written for the
+// streamer.
+type Note struct {
+	// SettingID is the step's setting the note is about, or empty when it's
+	// about the step as a whole.
+	SettingID string
+	Message   string
 }
 
 // EventSource lets a running step receive the events integrations deliver,

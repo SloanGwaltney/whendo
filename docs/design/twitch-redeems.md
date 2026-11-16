@@ -53,7 +53,7 @@ Twitch's request queue is a list in the streamer's Twitch dashboard, not anythin
 - **Whendo never says "queue" for this.** Its automations already queue runs, and the two would be confused. The setting is **Viewers can be refunded**, the opposite of Twitch's `should_redemptions_skip_request_queue`, with a hint that turning it on keeps each redemption waiting in the Twitch request queue until it's completed or refunded.
 - **New redeems can't be refunded by default.** Most redeems never need a refund, and redemptions that wait in the queue pile up unless something completes them.
 - **It's in plain sight on the form,** not hidden among advanced settings, since a redeem that needs refunds, such as Do a Voice, depends on it.
-- **The refund and fulfill steps will warn** with a good to know problem when the redeem can't be refunded: "This redeem can't be refunded. Turn on “Viewers can be refunded” in Redeems."
+- **The refund and fulfill steps warn** with a good to know problem when the redeem can't be refunded, such as "This redeem can't be refunded. Turn on “Viewers can be refunded” in Redeems." See [Twitch Steps](twitch-steps.md#refund-and-fulfill).
 
 ### Editing
 [Update Custom Reward](https://dev.twitch.tv/docs/api/reference/channel-points#update-custom-reward): `PATCH /helix/channel_points/custom_rewards?broadcaster_id=<streamer>&id=<reward>`.

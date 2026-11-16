@@ -9,10 +9,10 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/trigger"
 )
 
-// Test runs have no real event behind them, so their IDs say so. Steps that
-// act on the event itself, such as refunding a redemption, fail on these;
-// see docs/design/mvp-ui.md#test-runs.
-const testEventID = "test"
+// TestEventID is the ID test runs give their event, since they have no real
+// event behind them. Steps that act on the event itself, such as refunding a
+// redemption, fail on it; see docs/design/mvp-ui.md#test-runs.
+const TestEventID = "test"
 
 // The reward's own details come from Twitch, which a test run doesn't ask
 // yet, so these stand in until the redeem picker can look them up.
@@ -28,7 +28,7 @@ func testTime() string {
 func (redeemTrigger) TestValues(settings automationsetting.Values, streamer trigger.Streamer) map[string]string {
 	rewardID, _ := settings.Text(RewardSetting)
 	return map[string]string{
-		RedemptionIDVariable:        testEventID,
+		RedemptionIDVariable:        TestEventID,
 		RedeemerUserIDVariable:      streamer.UserID,
 		RedeemerLoginVariable:       streamer.Login,
 		RedeemerDisplayNameVariable: streamer.DisplayName,
@@ -46,7 +46,7 @@ func (redeemTrigger) TestValues(settings automationsetting.Values, streamer trig
 func (chatMessageTrigger) TestValues(settings automationsetting.Values, streamer trigger.Streamer) map[string]string {
 	startText, _ := settings.Text(StartsWithSetting)
 	return map[string]string{
-		MessageIDVariable:         testEventID,
+		MessageIDVariable:         TestEventID,
 		SenderUserIDVariable:      streamer.UserID,
 		SenderLoginVariable:       streamer.Login,
 		SenderDisplayNameVariable: streamer.DisplayName,

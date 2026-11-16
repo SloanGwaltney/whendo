@@ -33,6 +33,13 @@ export interface Definition {
      */
     "sentence": automationsetting$0.Sentence;
     "settings": automationsetting$0.Definition[] | null;
+
+    /**
+     * RequiredTriggerID is the trigger an automation must start with for
+     * the step to work, because the step acts on the event that started it,
+     * such as refunding a redemption. Empty means any trigger.
+     */
+    "requiredTriggerId": string;
 }
 
 /**

@@ -486,7 +486,7 @@ func TestCatalog_ListsDefinitionsInTheOrderGiven(t *testing.T) {
 		triggerIDs = append(triggerIDs, definition.ID)
 	}
 
-	if !slices.Equal(stepIDs, []string{sayStepType, rollStepType, checkStepType, waitStepType}) {
+	if !slices.Equal(stepIDs, []string{sayStepType, rollStepType, checkStepType, waitStepType, refundStepType}) {
 		t.Errorf("got steps %v", stepIDs)
 	}
 	if !slices.Equal(triggerIDs, []string{redeemTriggerID, notingTriggerID}) {
@@ -518,6 +518,64 @@ func TestCheck_LeavesOutTriggerNotesWhileItsSettingsHaveProblems(t *testing.T) {
 	for _, problem := range report.Problems {
 		if problem.Level == automation.ProblemLevelGoodToKnow {
 			t.Errorf("got note %+v alongside the missing reward", problem)
+		}
+	}
+}
+
+func TestCheck_RejectsStepThatNeedsAnotherTrigger(t *testing.T) {
+	onOtherTrigger := newAutomation(t, automation.Step{ID: "refund", Type: refundStepType})
+	onOtherTrigger.Trigger = automation.TriggerSelection{ID: notingTriggerID, Settings: automationsetting.Values{rewardSettingID: encode(t, "reward-1")}}
+
+	report := automation.Check(onOtherTrigger, newTestCatalog(t))
+
+	want := automation.Problem{Level: automation.ProblemLevelMustFix, Subject: automation.ProblemSubjectStep, StepID: "refund", Message: "“Refund” only works in automations started by “Redeem”."}
+	if len(report.Problems) != 1 || !problemsMatch(report.Problems[0], want) {
+		t.Errorf("got problems %+v, want only %+v", report.Problems, want)
+	}
+}
+
+func TestCheck_AcceptsStepStartedByTheTriggerItNeeds(t *testing.T) {
+	report := automation.Check(newAutomation(t, automation.Step{ID: "refund", Type: refundStepType}), newTestCatalog(t))
+
+	if len(report.Problems) != 0 {
+		t.Errorf("got problems %+v, want none", report.Problems)
+	}
+}
+
+func TestCheck_SkipsRequiredTriggerWhileThereIsNoTrigger(t *testing.T) {
+	withoutTrigger := newAutomation(t, automation.Step{ID: "refund", Type: refundStepType})
+	withoutTrigger.Trigger = automation.TriggerSelection{}
+
+	report := automation.Check(withoutTrigger, newTestCatalog(t))
+
+	for _, problem := range report.Problems {
+		if problem.Subject == automation.ProblemSubjectStep {
+			t.Errorf("got step problem %+v while there's no trigger", problem)
+		}
+	}
+}
+
+func TestCheck_ReportsStepNotesAsGoodToKnowOnTheStep(t *testing.T) {
+	unrefundable := newAutomation(t, rollStep("roll"), automation.Step{ID: "refund", Type: refundStepType})
+	unrefundable.Trigger.Settings = automationsetting.Values{rewardSettingID: encode(t, unrefundableReward)}
+
+	report := automation.Check(unrefundable, newTestCatalog(t))
+
+	want := automation.Problem{Level: automation.ProblemLevelGoodToKnow, Subject: automation.ProblemSubjectStep, StepID: "refund", Message: unrefundableMessage}
+	if len(report.Problems) != 1 || !problemsMatch(report.Problems[0], want) {
+		t.Errorf("got problems %+v, want only the note", report.Problems)
+	}
+}
+
+func TestCheck_LeavesOutStepNotesWhenTheStepNeedsAnotherTrigger(t *testing.T) {
+	onOtherTrigger := newAutomation(t, automation.Step{ID: "refund", Type: refundStepType})
+	onOtherTrigger.Trigger = automation.TriggerSelection{ID: notingTriggerID, Settings: automationsetting.Values{rewardSettingID: encode(t, unrefundableReward)}}
+
+	report := automation.Check(onOtherTrigger, newTestCatalog(t))
+
+	for _, problem := range report.Problems {
+		if problem.Level == automation.ProblemLevelGoodToKnow {
+			t.Errorf("got note %+v alongside the wrong trigger", problem)
 		}
 	}
 }

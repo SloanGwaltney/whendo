@@ -20,6 +20,7 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/trigger"
 	"github.com/SloanGwaltney/whendo/engine/twitchapi"
 	"github.com/SloanGwaltney/whendo/engine/twitcheventsub"
+	"github.com/SloanGwaltney/whendo/engine/twitchsteps"
 )
 
 const waitMilliseconds = 10
@@ -32,8 +33,9 @@ type serviceFixture struct {
 	automationFolder string
 }
 
-// newServiceFixture starts a service over temporary folders. It uses the
-// core steps only, so no test needs a Twitch login.
+// newServiceFixture starts a service over temporary folders, with every
+// trigger and step Whendo offers. No test runs a Twitch step, so none needs
+// a Twitch login.
 func newServiceFixture(t *testing.T, prepareFolder func(automationFolder string)) *serviceFixture {
 	t.Helper()
 	folder := t.TempDir()
@@ -41,12 +43,13 @@ func newServiceFixture(t *testing.T, prepareFolder func(automationFolder string)
 	if prepareFolder != nil {
 		prepareFolder(automationFolder)
 	}
-	catalog, err := automation.NewCatalog(twitcheventsub.Triggers(), coresteps.Steps())
+	known := &knownRewards{}
+	catalog, err := newAppCatalog(twitchapi.NewClient(twitchapi.Config{}), known)
 	if err != nil {
-		t.Fatalf("NewCatalog returned an error: %v", err)
+		t.Fatalf("newAppCatalog returned an error: %v", err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	service := newAutomationsService(catalog, automation.NewStore(automationFolder), runhistory.NewStore(filepath.Join(folder, runHistoryFolderName), logger), func() int { return runhistory.DefaultRetentionDays }, &knownRewards{}, func() (trigger.Streamer, error) { return testStreamer, nil }, logger)
+	service := newAutomationsService(catalog, automation.NewStore(automationFolder), runhistory.NewStore(filepath.Join(folder, runHistoryFolderName), logger), func() int { return runhistory.DefaultRetentionDays }, known, func() (trigger.Streamer, error) { return testStreamer, nil }, logger)
 	ctx, cancel := context.WithCancel(context.Background())
 	err = service.ServiceStartup(ctx, application.ServiceOptions{})
 	if err != nil {
@@ -266,7 +269,8 @@ func TestAutomationsService_CatalogListsTriggersAndSteps(t *testing.T) {
 
 	catalog := fixture.service.Catalog()
 
-	if len(catalog.Triggers) != len(twitcheventsub.Triggers()) || len(catalog.Steps) != len(coresteps.Steps()) {
+	twitchSteps := twitchsteps.Steps(twitchapi.NewClient(twitchapi.Config{}), &knownRewards{})
+	if len(catalog.Triggers) != len(twitcheventsub.Triggers()) || len(catalog.Steps) != len(coresteps.Steps())+len(twitchSteps) {
 		t.Errorf("got %d triggers and %d steps", len(catalog.Triggers), len(catalog.Steps))
 	}
 }
@@ -274,7 +278,7 @@ func TestAutomationsService_CatalogListsTriggersAndSteps(t *testing.T) {
 func TestNewAppCatalog_AcceptsEveryTriggerAndStepDefinition(t *testing.T) {
 	// Building the catalog checks every definition the designer will show,
 	// such as each sentence placing each setting once.
-	_, err := newAppCatalog(twitchapi.NewClient(twitchapi.Config{}))
+	_, err := newAppCatalog(twitchapi.NewClient(twitchapi.Config{}), &knownRewards{})
 
 	if err != nil {
 		t.Errorf("newAppCatalog returned an error: %v", err)

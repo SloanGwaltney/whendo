@@ -30,7 +30,7 @@ Triggers and steps both need settings, such as which reward a redeem trigger use
 | `template` | Text with variables inserted; see [Templates](#templates) | Send a chat message |
 | `wholeNumber` | An integer | Random number's lowest and highest |
 | `duration` | A length of time, stored in milliseconds | Wait, wait for a chat message |
-| `variable` | A reference to one variable | Check a condition, refund, "only from" |
+| `variable` | A reference to one variable | Check a condition, "only from" |
 | `option` | One of a fixed list the definition provides | Check a condition's comparison |
 | `choiceList` | A list of texts, each with a stable ID | Wait for a chat message's choices |
 | `twitch.reward` | A channel point reward ID | Redeem trigger |
@@ -53,6 +53,7 @@ A step definition mirrors a trigger definition:
 - **Settings,** as above.
 - **Outcomes,** each with an ID, a display name and the variables it provides. Most steps have one outcome. Outcomes can depend on settings: "wait for a chat message" has one outcome per choice plus "timed out," so the definition provides a function from settings to outcomes rather than a fixed list.
 - **Running** takes a context and the step's settings with variables already resolved. It returns the outcome taken and the values of that outcome's variables, or an error. An error fails the run; see [Failures](mvp-ui.md#failures).
+- **Required trigger,** optional, for steps that act on the event that started the automation, such as refunding a redemption. Using the step after any other trigger is a must-fix problem.
 - **Details** are optional notes a step returns about what it did, such as the chat message it sent, kept only for run history. Unlike variables, later steps can't use them, so the designer doesn't offer them. They're kept even when the step fails, so run history shows what it tried.
 
 The context is cancelled when Whendo shuts down, so a step that waits must stop when it is.
@@ -207,6 +208,8 @@ The check returns:
 - **Branches must match outcomes exactly,** even midway through an edit. When a step's outcomes change, such as a choice being added, the designer adds or removes branches using the outcomes the check returns.
 
 **Triggers can add notes** about their own settings, which the check reports as good to know, such as a [placeholder redeem](twitch-redeems.md#the-placeholder-redeem). They're never must-fix, since rules that make settings invalid belong in the setting definitions, and they're left out while the trigger's settings have problems of their own.
+
+**Steps can add notes** the same way, about how they're used: their own settings and the automation's trigger. Refund and fulfill use this to point out a redeem whose redemptions Twitch won't let Whendo change; see [Twitch Steps](twitch-steps.md#refund-and-fulfill). They're left out while the step's settings have problems, or when the step needs another trigger.
 
 Problems that depend on the world outside the automation, such as OBS not being connected, aren't part of the check. They belong to the integrations, and will come with the first steps that need them.
 

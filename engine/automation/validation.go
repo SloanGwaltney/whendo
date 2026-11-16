@@ -112,7 +112,7 @@ func Check(automation Automation, catalog *Catalog) Report {
 	checker.checkNameAndID(automation)
 	triggerVariables, isTriggerKnown := checker.checkTrigger(automation.Trigger)
 	checker.walkSequence(automation.Steps, triggerVariables, true)
-	checker.checkStepSettings(isTriggerKnown)
+	checker.checkStepSettings(automation.Trigger, isTriggerKnown)
 	slices.SortStableFunc(checker.problems, func(first Problem, second Problem) int {
 		return first.position - second.position
 	})
@@ -139,6 +139,7 @@ const (
 // checked once the whole automation has been walked.
 type checkedStep struct {
 	automationStep Step
+	stepType       step.Step
 	definition     step.Definition
 	available      []AvailableVariable
 	position       int
@@ -304,6 +305,7 @@ func (checker *checker) walkStep(automationStep Step, available []AvailableVaria
 	outcomes, outcomesErr := stepType.Outcomes(automationStep.Settings)
 	checker.checkedSteps = append(checker.checkedSteps, checkedStep{
 		automationStep: automationStep,
+		stepType:       stepType,
 		definition:     stepType.Definition(),
 		available:      available,
 		position:       position,
@@ -379,8 +381,8 @@ func (checker *checker) withOutcomeVariables(available []AvailableVariable, step
 // problem can name a variable even when it comes from a later step.
 // isTriggerKnown is false when the trigger is missing or unknown; then every
 // trigger variable would be a problem and none would help, so they're left
-// unchecked.
-func (checker *checker) checkStepSettings(isTriggerKnown bool) {
+// unchecked, and so is whether each step works with the trigger.
+func (checker *checker) checkStepSettings(triggerSelection TriggerSelection, isTriggerKnown bool) {
 	for _, checked := range checker.checkedSteps {
 		name := fmt.Sprintf("“%s”", checked.definition.DisplayName)
 		hasSettingProblem := false
@@ -414,6 +416,48 @@ func (checker *checker) checkStepSettings(isTriggerKnown bool) {
 		if checked.outcomesErr != nil && !hasSettingProblem {
 			checker.addMustFixStepProblem(checked.automationStep.ID, checked.position, fmt.Sprintf("%s couldn't work out its paths: %v.", name, checked.outcomesErr))
 		}
+		if !isTriggerKnown || hasSettingProblem {
+			continue
+		}
+		isTriggerRight := checker.checkRequiredTrigger(checked, name, triggerSelection.ID)
+		// Notes are only worth reading once the step can work at all.
+		if isTriggerRight {
+			checker.noteStep(checked, triggerSelection)
+		}
+	}
+}
+
+// checkRequiredTrigger reports a step that only works with another trigger,
+// such as refunding a redemption in an automation a chat message starts. It
+// returns whether the trigger is one the step works with.
+func (checker *checker) checkRequiredTrigger(checked checkedStep, name string, triggerID string) bool {
+	requiredTriggerID := checked.definition.RequiredTriggerID
+	if requiredTriggerID == "" || requiredTriggerID == triggerID {
+		return true
+	}
+	requiredTriggerName := fmt.Sprintf("%q", requiredTriggerID)
+	requiredTrigger, isFound := checker.catalog.Trigger(requiredTriggerID)
+	if isFound {
+		requiredTriggerName = fmt.Sprintf("“%s”", requiredTrigger.Definition().DisplayName)
+	}
+	checker.addMustFixStepProblem(checked.automationStep.ID, checked.position, fmt.Sprintf("%s only works in automations started by %s.", name, requiredTriggerName))
+	return false
+}
+
+// noteStep adds what a step says is good to know about how it's used, such
+// as refunding redemptions of a redeem that can't be refunded.
+func (checker *checker) noteStep(checked checkedStep, triggerSelection TriggerSelection) {
+	noter, canNote := checked.stepType.(step.Noter)
+	if !canNote {
+		return
+	}
+	usage := step.Usage{
+		Settings:        checked.automationStep.Settings,
+		TriggerID:       triggerSelection.ID,
+		TriggerSettings: triggerSelection.Settings,
+	}
+	for _, note := range noter.NoteStep(usage) {
+		checker.addProblem(Problem{Level: ProblemLevelGoodToKnow, Subject: ProblemSubjectStep, StepID: checked.automationStep.ID, SettingID: note.SettingID, Message: note.Message, position: checked.position})
 	}
 }
 

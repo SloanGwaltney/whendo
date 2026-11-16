@@ -42,6 +42,12 @@ const (
 	notingTriggerID    = "test.notingRedeem"
 	placeholderReward  = "placeholder"
 	placeholderMessage = "This only runs when you test it."
+
+	// refundStepType only works in automations the redeem trigger starts,
+	// and notes when that redeem's reward can't be refunded.
+	refundStepType      = "test.refund"
+	unrefundableReward  = "unrefundable"
+	unrefundableMessage = "This redeem can't be refunded."
 )
 
 type fakeTrigger struct {
@@ -91,13 +97,28 @@ func (fake fakeStep) Run(ctx context.Context, input step.Input) (step.Result, er
 	return step.Result{OutcomeID: fake.outcomes[0].ID}, nil
 }
 
+// refundStep acts on the redemption that started the automation, like the
+// Twitch refund step, so tests can check required triggers and step notes.
+type refundStep struct {
+	fakeStep
+}
+
+func (refundStep) NoteStep(usage step.Usage) []step.Note {
+	reward, err := usage.TriggerSettings.Text(rewardSettingID)
+	if err != nil || reward != unrefundableReward {
+		return nil
+	}
+	return []step.Note{{Message: unrefundableMessage}}
+}
+
 func newTestCatalog(t *testing.T) *automation.Catalog {
 	t.Helper()
 	triggers := []trigger.Trigger{
 		fakeTrigger{definition: trigger.Definition{
-			ID:       redeemTriggerID,
-			Sentence: automationsetting.Sentence{automationsetting.Words("someone redeems"), automationsetting.Setting(rewardSettingID)},
-			Settings: []automationsetting.Definition{{ID: rewardSettingID, Kind: automationsetting.KindText, IsRequired: true, Placeholder: rewardPlaceholder}},
+			ID:          redeemTriggerID,
+			DisplayName: "Redeem",
+			Sentence:    automationsetting.Sentence{automationsetting.Words("someone redeems"), automationsetting.Setting(rewardSettingID)},
+			Settings:    []automationsetting.Definition{{ID: rewardSettingID, Kind: automationsetting.KindText, IsRequired: true, Placeholder: rewardPlaceholder}},
 			Variables: []trigger.VariableDefinition{
 				{ID: redeemerNameVariable, DisplayName: "Redeemer's name", IsCommon: true},
 			},
@@ -144,6 +165,10 @@ func newTestCatalog(t *testing.T) *automation.Catalog {
 				{ID: timedOutOutcomeID, DisplayName: "Timed out"},
 			},
 		},
+		refundStep{fakeStep{
+			definition: step.Definition{ID: refundStepType, DisplayName: "Refund", RequiredTriggerID: redeemTriggerID},
+			outcomes:   []step.Outcome{{ID: step.DefaultOutcomeID}},
+		}},
 	}
 	catalog, err := automation.NewCatalog(triggers, steps)
 	if err != nil {

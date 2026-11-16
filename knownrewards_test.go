@@ -11,6 +11,7 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/coresteps"
 	"github.com/SloanGwaltney/whendo/engine/twitcheventsub"
 	"github.com/SloanGwaltney/whendo/engine/twitchrewards"
+	"github.com/SloanGwaltney/whendo/engine/twitchsteps"
 )
 
 const (
@@ -149,6 +150,19 @@ func TestListAutomations_NotesPlaceholderAndMissingRedeems(t *testing.T) {
 	}
 	if summaries["existing"].TriggerNote != "" {
 		t.Errorf("got note %q for a redeem that exists", summaries["existing"].TriggerNote)
+	}
+}
+
+func TestCheckAutomation_PointsOutRefundingARedeemWhendoDidntMake(t *testing.T) {
+	fixture := newServiceFixture(t, nil)
+	fixture.listRewards(existingRewardList)
+	refunding := redeemAutomation(t, "refunding", existingRewardID)
+	refunding.Steps = append(refunding.Steps, automation.Step{ID: "refund", Type: twitchsteps.RefundRedemptionStepID})
+
+	report := fixture.service.CheckAutomation(refunding)
+
+	if len(report.Problems) != 1 || report.Problems[0].StepID != "refund" || report.Problems[0].Level != automation.ProblemLevelGoodToKnow {
+		t.Errorf("got problems %+v, want one good to know problem on the refund step", report.Problems)
 	}
 }
 

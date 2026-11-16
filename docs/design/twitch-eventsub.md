@@ -1,7 +1,7 @@
 # Twitch EventSub
 
 - **Status:** Draft
-- **Last updated:** 2026-11-15
+- **Last updated:** 2026-11-16
 
 How Whendo receives events from Twitch, such as redeems, chat messages and follows, and turns them into triggers. Like login, this is part of the engine, not the Wails layer. For the automation model these triggers feed into, see [MVP UI Design](mvp-ui.md#automation-model). For the login it depends on, see [Twitch Login](twitch-login.md).
 
@@ -10,7 +10,7 @@ How Whendo receives events from Twitch, such as redeems, chat messages and follo
 - **The engine defines the contract, not the events.** A trigger has an ID, a name, its settings, a filter that checks events against those settings, and a list of the variables it provides; see [Automation Engine](automation-engine.md#triggers). An event says which trigger fired and carries a value for each of those variables. The engine only handles that generic shape.
 - **Each integration defines its own triggers.** The Twitch integration declares "redeem," "chat message starts with" and "follow." A future integration for another platform declares its own, and nothing forces them to match Twitch's, because no event is guaranteed to exist on every platform.
 - **Twitch's data stays in the Twitch integration.** The integration translates each EventSub notification into one of its own triggers. The engine never sees Twitch's JSON, so when Twitch changes or retires a subscription version, only the integration changes.
-- **Everything in the event becomes a variable.** Nothing is hidden from the user, including IDs. The only limit is how the designer presents them, for example by showing common variables first and IDs under "more." Steps take variables as inputs, so "refund a redemption" takes the redemption ID variable and "only from a specific user" takes a user ID variable.
+- **Everything in the event becomes a variable.** Nothing is hidden from the user, including IDs. The only limit is how the designer presents them, for example by showing common variables first and IDs under "more." Steps take variables as inputs, so "only from a specific user" takes a user ID variable. Refund and fulfill are the exception: they always act on the redemption that started the automation, so they take no settings; see [Twitch Steps](twitch-steps.md#refund-and-fulfill).
 - **Test runs fire any trigger** with values from a form instead of from Twitch. They aren't a source with triggers of their own. See [Test Runs](mvp-ui.md#test-runs).
 
 ## Subscriptions

@@ -155,9 +155,10 @@ func main() {
 	}
 }
 
-// newAppCatalog returns every trigger and step Whendo offers.
-func newAppCatalog(twitchClient *twitchapi.Client) (*automation.Catalog, error) {
-	steps := append(coresteps.Steps(), twitchsteps.Steps(twitchClient)...)
+// newAppCatalog returns every trigger and step Whendo offers. The refund and
+// fulfill steps check redeems against the last list that loaded.
+func newAppCatalog(twitchClient *twitchapi.Client, knownRewards *knownRewards) (*automation.Catalog, error) {
+	steps := append(coresteps.Steps(), twitchsteps.Steps(twitchClient, knownRewards)...)
 	catalog, err := automation.NewCatalog(twitcheventsub.Triggers(), steps)
 	if err != nil {
 		return nil, fmt.Errorf("building the catalog of triggers and steps: %w", err)
@@ -169,7 +170,7 @@ func newAppCatalog(twitchClient *twitchapi.Client) (*automation.Catalog, error) 
 // trigger and step Whendo offers, storing automations in Whendo's data
 // folder.
 func newAutomationsServiceForApp(folder string, runHistoryStore *runhistory.Store, runHistoryRetentionDays func() int, knownRewards *knownRewards, twitchSession *twitchauth.Session, twitchClient *twitchapi.Client) (*AutomationsService, error) {
-	catalog, err := newAppCatalog(twitchClient)
+	catalog, err := newAppCatalog(twitchClient, knownRewards)
 	if err != nil {
 		return nil, err
 	}

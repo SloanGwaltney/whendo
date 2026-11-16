@@ -4,145 +4,26 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/SloanGwaltney/whendo/engine/automationsetting"
 	"github.com/SloanGwaltney/whendo/engine/step"
 	"github.com/SloanGwaltney/whendo/engine/twitchapi"
-	"github.com/SloanGwaltney/whendo/engine/twitchauth"
 	"github.com/SloanGwaltney/whendo/engine/twitchsteps"
 )
 
 const (
-	testClientID       = "test-client-id"
-	streamerUserID     = "1337"
-	firstAccessToken   = "first-token"
-	renewedAccessToken = "renewed-token"
-	sentResponseBody   = `{"data":[{"message_id":"abc","is_sent":true,"drop_reason":null}]}`
-	droppedSlowMode    = `{"data":[{"message_id":"","is_sent":false,"drop_reason":{"code":"slow_mode","message":"This room is in slow mode."}}]}`
+	sentResponseBody = `{"data":[{"message_id":"abc","is_sent":true,"drop_reason":null}]}`
+	droppedSlowMode  = `{"data":[{"message_id":"","is_sent":false,"drop_reason":{"code":"slow_mode","message":"This room is in slow mode."}}]}`
 )
-
-// The real login must work as the steps' account.
-var _ twitchapi.Account = (*twitchauth.Session)(nil)
-
-// fakeAccount stands in for the Twitch login.
-type fakeAccount struct {
-	isLoggedIn   bool
-	mutex        sync.Mutex
-	renewedCount int
-}
-
-func (account *fakeAccount) AccountUserID() (string, error) {
-	if !account.isLoggedIn {
-		return "", twitchauth.ErrNotLoggedIn
-	}
-	return streamerUserID, nil
-}
-
-func (account *fakeAccount) AccessToken(context.Context) (string, error) {
-	if !account.isLoggedIn {
-		return "", twitchauth.ErrNotLoggedIn
-	}
-	return firstAccessToken, nil
-}
-
-func (account *fakeAccount) RenewAccessToken(ctx context.Context, rejectedAccessToken string) (string, error) {
-	account.mutex.Lock()
-	defer account.mutex.Unlock()
-	account.renewedCount++
-	return renewedAccessToken, nil
-}
-
-// receivedRequest is one request the fake Twitch API received.
-type receivedRequest struct {
-	authorization string
-	clientID      string
-	body          map[string]any
-}
-
-// fakeTwitch answers each request with the next response in its list and
-// records what it received.
-type fakeTwitch struct {
-	t         *testing.T
-	mutex     sync.Mutex
-	responses []fakeResponse
-	requests  []receivedRequest
-}
-
-type fakeResponse struct {
-	statusCode int
-	body       string
-}
-
-func newFakeTwitch(t *testing.T, responses ...fakeResponse) (*fakeTwitch, *httptest.Server) {
-	t.Helper()
-	fake := &fakeTwitch{t: t, responses: responses}
-	server := httptest.NewServer(http.HandlerFunc(fake.handle))
-	t.Cleanup(server.Close)
-	return fake, server
-}
-
-func (fake *fakeTwitch) handle(writer http.ResponseWriter, request *http.Request) {
-	fake.mutex.Lock()
-	defer fake.mutex.Unlock()
-	if request.Method != http.MethodPost || request.URL.Path != "/chat/messages" {
-		fake.t.Errorf("got %s %s, want POST /chat/messages", request.Method, request.URL.Path)
-	}
-	encodedBody, err := io.ReadAll(request.Body)
-	if err != nil {
-		fake.t.Errorf("reading the request body: %v", err)
-	}
-	var body map[string]any
-	err = json.Unmarshal(encodedBody, &body)
-	if err != nil {
-		fake.t.Errorf("decoding the request body: %v", err)
-	}
-	fake.requests = append(fake.requests, receivedRequest{
-		authorization: request.Header.Get("Authorization"),
-		clientID:      request.Header.Get("Client-Id"),
-		body:          body,
-	})
-	if len(fake.responses) == 0 {
-		fake.t.Error("got more requests than expected")
-		writer.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	response := fake.responses[0]
-	fake.responses = fake.responses[1:]
-	writer.WriteHeader(response.statusCode)
-	_, err = writer.Write([]byte(response.body))
-	if err != nil {
-		fake.t.Errorf("writing the response: %v", err)
-	}
-}
-
-func (fake *fakeTwitch) receivedRequests() []receivedRequest {
-	fake.mutex.Lock()
-	defer fake.mutex.Unlock()
-	return fake.requests
-}
 
 func sendChatMessageStep(t *testing.T, server *httptest.Server, account twitchapi.Account) step.Step {
 	t.Helper()
-	steps := twitchsteps.Steps(twitchapi.NewClient(twitchapi.Config{
-		ClientID:   testClientID,
-		Account:    account,
-		BaseURL:    server.URL,
-		HTTPClient: server.Client(),
-	}))
-	for _, twitchStep := range steps {
-		if twitchStep.Definition().ID == twitchsteps.SendChatMessageStepID {
-			return twitchStep
-		}
-	}
-	t.Fatal("no send chat message step")
-	return nil
+	return twitchStep(t, twitchsteps.SendChatMessageStepID, server, account, fakeRewards{})
 }
 
 func messageInput(t *testing.T, template automationsetting.Template, variables automationsetting.VariableValues) step.Input {
@@ -184,6 +65,9 @@ func TestSendChatMessage_PostsMessageAsStreamerInOwnChannel(t *testing.T) {
 		t.Fatalf("got %d requests, want 1", len(requests))
 	}
 	request := requests[0]
+	if request.method != http.MethodPost || request.path != "/chat/messages" {
+		t.Errorf("got %s %s, want POST /chat/messages", request.method, request.path)
+	}
 	if request.authorization != "Bearer "+firstAccessToken || request.clientID != testClientID {
 		t.Errorf("got Authorization %q and Client-Id %q", request.authorization, request.clientID)
 	}
