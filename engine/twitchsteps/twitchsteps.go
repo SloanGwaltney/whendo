@@ -4,53 +4,14 @@
 package twitchsteps
 
 import (
-	"context"
-	"net/http"
-	"strings"
-
 	"github.com/SloanGwaltney/whendo/engine/step"
+	"github.com/SloanGwaltney/whendo/engine/twitchapi"
 )
-
-// DefaultHelixBaseURL is the base URL of Twitch's API.
-const DefaultHelixBaseURL = "https://api.twitch.tv/helix"
 
 // chatGroup is the step picker's group for steps that act on chat.
 const chatGroup = "Chat"
 
-// Account is the Twitch login the steps act as. twitchauth.Session
-// implements it.
-type Account interface {
-	AccountUserID() (string, error)
-	AccessToken(ctx context.Context) (string, error)
-	// RenewAccessToken replaces a token Twitch rejected. It returns
-	// twitchauth.ErrNotLoggedIn if the login can't be renewed.
-	RenewAccessToken(ctx context.Context, rejectedAccessToken string) (string, error)
-}
-
-// Config holds what the Twitch steps need.
-type Config struct {
-	ClientID string
-	Account  Account
-	// HelixBaseURL defaults to Twitch's API. Tests point it at a fake.
-	HelixBaseURL string
-	HTTPClient   *http.Client
-}
-
-// Steps returns every Twitch step.
-func Steps(config Config) []step.Step {
-	helixBaseURL := config.HelixBaseURL
-	if helixBaseURL == "" {
-		helixBaseURL = DefaultHelixBaseURL
-	}
-	httpClient := config.HTTPClient
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
-	client := &helixClient{
-		clientID:   config.ClientID,
-		account:    config.Account,
-		baseURL:    strings.TrimSuffix(helixBaseURL, "/"),
-		httpClient: httpClient,
-	}
-	return []step.Step{sendChatMessageStep{helix: client}}
+// Steps returns every Twitch step, acting through the given client.
+func Steps(twitch *twitchapi.Client) []step.Step {
+	return []step.Step{sendChatMessageStep{twitch: twitch}}
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/runhistory"
 	"github.com/SloanGwaltney/whendo/engine/runner"
 	"github.com/SloanGwaltney/whendo/engine/trigger"
+	"github.com/SloanGwaltney/whendo/engine/twitchapi"
 	"github.com/SloanGwaltney/whendo/engine/twitchauth"
 	"github.com/SloanGwaltney/whendo/engine/twitcheventsub"
 	"github.com/SloanGwaltney/whendo/engine/twitchsteps"
@@ -62,7 +63,12 @@ func main() {
 	// Settings are read before any service starts, so the first prune
 	// already keeps run history for as long as the user chose.
 	settingsService := newSettingsService(appsettings.NewStore(filepath.Join(folder, settingsFileName)), runHistoryStore, slog.Default())
-	automationsService, err := newAutomationsServiceForApp(folder, runHistoryStore, settingsService.runHistoryRetentionDays, twitchSession, twitchHTTPClient)
+	twitchClient := twitchapi.NewClient(twitchapi.Config{
+		ClientID:   twitchClientID(),
+		Account:    twitchSession,
+		HTTPClient: twitchHTTPClient,
+	})
+	automationsService, err := newAutomationsServiceForApp(folder, runHistoryStore, settingsService.runHistoryRetentionDays, twitchSession, twitchClient)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -141,8 +147,8 @@ func main() {
 }
 
 // newAppCatalog returns every trigger and step Whendo offers.
-func newAppCatalog(twitchStepsConfig twitchsteps.Config) (*automation.Catalog, error) {
-	steps := append(coresteps.Steps(), twitchsteps.Steps(twitchStepsConfig)...)
+func newAppCatalog(twitchClient *twitchapi.Client) (*automation.Catalog, error) {
+	steps := append(coresteps.Steps(), twitchsteps.Steps(twitchClient)...)
 	catalog, err := automation.NewCatalog(twitcheventsub.Triggers(), steps)
 	if err != nil {
 		return nil, fmt.Errorf("building the catalog of triggers and steps: %w", err)
@@ -153,12 +159,8 @@ func newAppCatalog(twitchStepsConfig twitchsteps.Config) (*automation.Catalog, e
 // newAutomationsServiceForApp builds the automation engine with every
 // trigger and step Whendo offers, storing automations in Whendo's data
 // folder.
-func newAutomationsServiceForApp(folder string, runHistoryStore *runhistory.Store, runHistoryRetentionDays func() int, twitchSession *twitchauth.Session, twitchHTTPClient *http.Client) (*AutomationsService, error) {
-	catalog, err := newAppCatalog(twitchsteps.Config{
-		ClientID:   twitchClientID(),
-		Account:    twitchSession,
-		HTTPClient: twitchHTTPClient,
-	})
+func newAutomationsServiceForApp(folder string, runHistoryStore *runhistory.Store, runHistoryRetentionDays func() int, twitchSession *twitchauth.Session, twitchClient *twitchapi.Client) (*AutomationsService, error) {
+	catalog, err := newAppCatalog(twitchClient)
 	if err != nil {
 		return nil, err
 	}

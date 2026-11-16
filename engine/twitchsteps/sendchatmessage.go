@@ -11,6 +11,7 @@ import (
 
 	"github.com/SloanGwaltney/whendo/engine/automationsetting"
 	"github.com/SloanGwaltney/whendo/engine/step"
+	"github.com/SloanGwaltney/whendo/engine/twitchapi"
 )
 
 const (
@@ -29,7 +30,7 @@ const (
 )
 
 type sendChatMessageStep struct {
-	helix *helixClient
+	twitch *twitchapi.Client
 }
 
 type sendChatMessageRequest struct {
@@ -85,14 +86,18 @@ func (chatStep sendChatMessageStep) Run(ctx context.Context, input step.Input) (
 	if err != nil {
 		return failedResult, err
 	}
-	broadcasterUserID, err := chatStep.helix.broadcasterUserID()
+	broadcasterUserID, err := chatStep.twitch.BroadcasterUserID()
 	if err != nil {
 		return failedResult, err
 	}
-	response, err := chatStep.helix.postJSON(ctx, chatMessagesPath, sendChatMessageRequest{
-		BroadcasterID: broadcasterUserID,
-		SenderID:      broadcasterUserID,
-		Message:       message,
+	response, err := chatStep.twitch.Do(ctx, twitchapi.Request{
+		Method: http.MethodPost,
+		Path:   chatMessagesPath,
+		Body: sendChatMessageRequest{
+			BroadcasterID: broadcasterUserID,
+			SenderID:      broadcasterUserID,
+			Message:       message,
+		},
 	})
 	if err != nil {
 		return failedResult, err
@@ -131,20 +136,20 @@ func checkMessage(message string) error {
 // checkSendResponse turns Twitch's answer into a failure the streamer can
 // understand. A 200 response can still mean the message was dropped, for
 // example by slow mode or AutoMod, so the body is checked too.
-func checkSendResponse(response helixResponse) error {
-	switch response.statusCode {
+func checkSendResponse(response twitchapi.Response) error {
+	switch response.StatusCode {
 	case http.StatusOK:
-		return checkMessageWasSent(response.body)
+		return checkMessageWasSent(response.Body)
 	case http.StatusUnauthorized:
-		return fmt.Errorf("twitch didn't accept Whendo's login for sending chat messages: %s", response.errorMessage())
+		return fmt.Errorf("twitch didn't accept Whendo's login for sending chat messages: %s", response.ErrorMessage())
 	case http.StatusForbidden:
-		return fmt.Errorf("twitch doesn't allow your account to chat in your channel right now: %s", response.errorMessage())
+		return fmt.Errorf("twitch doesn't allow your account to chat in your channel right now: %s", response.ErrorMessage())
 	case http.StatusUnprocessableEntity:
-		return fmt.Errorf("twitch says the message is too long: %s", response.errorMessage())
+		return fmt.Errorf("twitch says the message is too long: %s", response.ErrorMessage())
 	case http.StatusTooManyRequests:
 		return errors.New("twitch's limit on how fast you can send chat messages was reached, so this message wasn't sent")
 	default:
-		return fmt.Errorf("twitch couldn't send the message (HTTP %d): %s", response.statusCode, response.errorMessage())
+		return fmt.Errorf("twitch couldn't send the message (HTTP %d): %s", response.StatusCode, response.ErrorMessage())
 	}
 }
 

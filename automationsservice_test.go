@@ -18,8 +18,8 @@ import (
 	"github.com/SloanGwaltney/whendo/engine/coresteps"
 	"github.com/SloanGwaltney/whendo/engine/runhistory"
 	"github.com/SloanGwaltney/whendo/engine/trigger"
+	"github.com/SloanGwaltney/whendo/engine/twitchapi"
 	"github.com/SloanGwaltney/whendo/engine/twitcheventsub"
-	"github.com/SloanGwaltney/whendo/engine/twitchsteps"
 )
 
 const waitMilliseconds = 10
@@ -274,7 +274,7 @@ func TestAutomationsService_CatalogListsTriggersAndSteps(t *testing.T) {
 func TestNewAppCatalog_AcceptsEveryTriggerAndStepDefinition(t *testing.T) {
 	// Building the catalog checks every definition the designer will show,
 	// such as each sentence placing each setting once.
-	_, err := newAppCatalog(twitchsteps.Config{})
+	_, err := newAppCatalog(twitchapi.NewClient(twitchapi.Config{}))
 
 	if err != nil {
 		t.Errorf("newAppCatalog returned an error: %v", err)

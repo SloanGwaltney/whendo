@@ -14,6 +14,7 @@ import (
 
 	"github.com/SloanGwaltney/whendo/engine/automationsetting"
 	"github.com/SloanGwaltney/whendo/engine/step"
+	"github.com/SloanGwaltney/whendo/engine/twitchapi"
 	"github.com/SloanGwaltney/whendo/engine/twitchauth"
 	"github.com/SloanGwaltney/whendo/engine/twitchsteps"
 )
@@ -28,7 +29,7 @@ const (
 )
 
 // The real login must work as the steps' account.
-var _ twitchsteps.Account = (*twitchauth.Session)(nil)
+var _ twitchapi.Account = (*twitchauth.Session)(nil)
 
 // fakeAccount stands in for the Twitch login.
 type fakeAccount struct {
@@ -127,14 +128,14 @@ func (fake *fakeTwitch) receivedRequests() []receivedRequest {
 	return fake.requests
 }
 
-func sendChatMessageStep(t *testing.T, server *httptest.Server, account twitchsteps.Account) step.Step {
+func sendChatMessageStep(t *testing.T, server *httptest.Server, account twitchapi.Account) step.Step {
 	t.Helper()
-	steps := twitchsteps.Steps(twitchsteps.Config{
-		ClientID:     testClientID,
-		Account:      account,
-		HelixBaseURL: server.URL,
-		HTTPClient:   server.Client(),
-	})
+	steps := twitchsteps.Steps(twitchapi.NewClient(twitchapi.Config{
+		ClientID:   testClientID,
+		Account:    account,
+		BaseURL:    server.URL,
+		HTTPClient: server.Client(),
+	}))
 	for _, twitchStep := range steps {
 		if twitchStep.Definition().ID == twitchsteps.SendChatMessageStepID {
 			return twitchStep
