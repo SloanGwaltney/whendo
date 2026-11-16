@@ -58,6 +58,28 @@ export function NewRewardSettings(): $CancellablePromise<twitchrewards$0.Setting
 }
 
 /**
+ * OpenRewardsDashboard opens the streamer's redeems in the Twitch dashboard,
+ * where they delete the original while recreating a redeem in Whendo. Made-up
+ * redeems have no dashboard, so for those it acts out deleting the original
+ * instead.
+ */
+export function OpenRewardsDashboard(originalRewardID: string): $CancellablePromise<void> {
+    return $Call.ByID(751986577, originalRewardID);
+}
+
+/**
+ * RecreateReward makes a copy of a redeem made in the Twitch dashboard, once
+ * the streamer has deleted the original, so Whendo can change it. The
+ * original's settings come from the page, which kept them from the list it
+ * loaded, since Twitch no longer has them. Every automation on the original
+ * is switched to the copy. See
+ * docs/design/twitch-redeems.md#recreating-a-redeem-in-whendo.
+ */
+export function RecreateReward(original: twitchrewards$0.Reward): $CancellablePromise<$models.RecreateResult> {
+    return $Call.ByID(3605648907, original);
+}
+
+/**
  * SetRewardPaused pauses or resumes a redeem Whendo made.
  */
 export function SetRewardPaused(rewardID: string, isPaused: boolean): $CancellablePromise<twitchrewards$0.Reward> {

@@ -152,3 +152,17 @@ func (source *FakeSource) isTitleTaken(title string, renamedRewardID string) boo
 		return reward.ID != renamedRewardID && strings.EqualFold(reward.Title, trimmedTitle)
 	})
 }
+
+// DeleteAsDashboard deletes a made-up reward as if the streamer had done it
+// in the Twitch dashboard, which can delete any reward. There's no real
+// dashboard behind made-up rewards, so recreating one acts this step out.
+func (source *FakeSource) DeleteAsDashboard(rewardID string) error {
+	source.mutex.Lock()
+	defer source.mutex.Unlock()
+	index := slices.IndexFunc(source.rewards, func(reward Reward) bool { return reward.ID == rewardID })
+	if index < 0 {
+		return ErrRewardNotFound
+	}
+	source.rewards = slices.Delete(source.rewards, index, index+1)
+	return nil
+}

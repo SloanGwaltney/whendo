@@ -44,6 +44,24 @@ export interface CatalogDefinitions {
 }
 
 /**
+ * RecreateResult tells the Redeems page what recreating a redeem did.
+ */
+export interface RecreateResult {
+    "reward": twitchrewards$0.Reward;
+
+    /**
+     * SwitchedAutomations names the automations now on the new redeem.
+     */
+    "switchedAutomations": string[] | null;
+
+    /**
+     * SwitchProblem says why some automations couldn't be switched. The
+     * redeem was still recreated, so the streamer switches those by hand.
+     */
+    "switchProblem": string;
+}
+
+/**
  * RetentionLimits are the run history retention periods the user can
  * choose, in days, so the Settings page can say so.
  */

@@ -3,9 +3,11 @@ package main
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -249,20 +251,61 @@ func insertAfterTriggerProblems(problems []automation.Problem, triggerProblem au
 func (service *AutomationsService) AutomationsUsingReward(rewardID string) []string {
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
-	names := []string{}
+	return sortedNames(service.automationsUsingReward(rewardID))
+}
+
+// automationsUsingReward returns the automations whose trigger is the given
+// redeem. The mutex must be held.
+func (service *AutomationsService) automationsUsingReward(rewardID string) []automation.Automation {
+	var using []automation.Automation
 	for _, savedAutomation := range service.automationsByID {
 		if savedAutomation.Trigger.ID != twitcheventsub.RedeemTriggerID {
 			continue
 		}
 		usedRewardID, err := savedAutomation.Trigger.Settings.Text(twitcheventsub.RewardSetting)
 		if err == nil && usedRewardID == rewardID {
-			names = append(names, savedAutomation.Name)
+			using = append(using, savedAutomation)
 		}
+	}
+	return using
+}
+
+func sortedNames(automations []automation.Automation) []string {
+	names := make([]string, 0, len(automations))
+	for _, namedAutomation := range automations {
+		names = append(names, namedAutomation.Name)
 	}
 	slices.SortFunc(names, func(first string, second string) int {
 		return cmp.Compare(strings.ToLower(first), strings.ToLower(second))
 	})
 	return names
+}
+
+// switchReward points every automation on one redeem at another and saves
+// each, for recreating a redeem in Whendo. It returns the names of the
+// automations it switched. An automation that can't be saved is reported,
+// and the rest are still switched. See
+// docs/design/twitch-redeems.md#recreating-a-redeem-in-whendo.
+func (service *AutomationsService) switchReward(oldRewardID string, newRewardID string) ([]string, error) {
+	encodedNewRewardID, err := json.Marshal(newRewardID)
+	if err != nil {
+		return nil, fmt.Errorf("encoding the new redeem's ID: %w", err)
+	}
+	service.mutex.Lock()
+	defer service.mutex.Unlock()
+	var switched []automation.Automation
+	var saveErrors []error
+	for _, usingAutomation := range service.automationsUsingReward(oldRewardID) {
+		usingAutomation.Trigger.Settings = maps.Clone(usingAutomation.Trigger.Settings)
+		usingAutomation.Trigger.Settings[twitcheventsub.RewardSetting] = encodedNewRewardID
+		_, err := service.saveAutomation(usingAutomation)
+		if err != nil {
+			saveErrors = append(saveErrors, fmt.Errorf("switching “%s”: %w", usingAutomation.Name, err))
+			continue
+		}
+		switched = append(switched, usingAutomation)
+	}
+	return sortedNames(switched), errors.Join(saveErrors...)
 }
 
 // GetAutomation returns one saved automation.
@@ -303,6 +346,11 @@ func (service *AutomationsService) CheckAutomation(draft automation.Automation) 
 func (service *AutomationsService) SaveAutomation(changedAutomation automation.Automation) (SaveResult, error) {
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
+	return service.saveAutomation(changedAutomation)
+}
+
+// saveAutomation saves as SaveAutomation does. The mutex must be held.
+func (service *AutomationsService) saveAutomation(changedAutomation automation.Automation) (SaveResult, error) {
 	problem, hasProblem := automation.Check(changedAutomation, service.catalog).FirstMustFixProblem()
 	if hasProblem {
 		return service.saveBrokenAutomation(changedAutomation, problem.Message)

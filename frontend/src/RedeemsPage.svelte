@@ -5,6 +5,7 @@
   import Dialog from "./Dialog.svelte";
   import Page from "./Page.svelte";
   import RedeemFormDialog from "./RedeemFormDialog.svelte";
+  import RecreateRedeemDialog from "./RecreateRedeemDialog.svelte";
   import RedeemRow from "./RedeemRow.svelte";
   import {loadRewards, placeholderRewardLabel, rewardsState} from "./rewards.svelte";
   import Toast from "./Toast.svelte";
@@ -24,6 +25,7 @@
   // The automations that use the redeem about to be deleted, or null while
   // they're being looked up.
   let automationsUsingDeleted = $state<string[] | null>(null);
+  let rewardToRecreate = $state<Reward | null>(null);
   let actionErrorMessage = $state("");
   let toastMessage = $state("");
 
@@ -85,6 +87,11 @@
       rewardToDelete = null;
       actionErrorMessage = `Couldn't check which automations use “${reward.title}”: ${error}`;
     }
+  }
+
+  async function finishRecreating(): Promise<void> {
+    rewardToRecreate = null;
+    await loadRewards();
   }
 
   async function confirmDelete(): Promise<void> {
@@ -151,10 +158,10 @@
       {#if otherRewards.length > 0}
         <section class="group">
           <h2>Made in the Twitch dashboard</h2>
-          <p class="hint">Whendo can start automations from these, but Twitch only lets the app that made a redeem change it.</p>
+          <p class="hint">Whendo can start automations from these, but Twitch only lets the app that made a redeem change it. Recreate one in Whendo to change it here.</p>
           <ul class="redeem-list">
             {#each otherRewards as reward (reward.id)}
-              <RedeemRow {reward}/>
+              <RedeemRow {reward} onRecreate={() => (rewardToRecreate = reward)}/>
             {/each}
           </ul>
         </section>
@@ -166,6 +173,8 @@
 {#if limits}
   <RedeemFormDialog isOpen={isFormOpen} {editedReward} {limits} onSaved={finishSaving} onClose={() => (isFormOpen = false)}/>
 {/if}
+
+<RecreateRedeemDialog original={rewardToRecreate} onFinished={finishRecreating} onClose={() => (rewardToRecreate = null)}/>
 
 <Dialog title="Delete this redeem?" isOpen={rewardToDelete !== null} onClose={() => (rewardToDelete = null)}>
   <p>“{rewardToDelete?.title}” will be deleted from Twitch. This can't be undone.</p>

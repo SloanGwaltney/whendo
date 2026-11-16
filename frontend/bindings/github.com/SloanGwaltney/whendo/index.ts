@@ -17,6 +17,7 @@ export {
 export type {
     AutomationSummary,
     CatalogDefinitions,
+    RecreateResult,
     RetentionLimits,
     RewardLimits,
     RewardList,

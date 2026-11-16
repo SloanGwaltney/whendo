@@ -61,6 +61,13 @@ type Source interface {
 	Delete(ctx context.Context, rewardID string) error
 }
 
+// DashboardActor is a source that acts out what the streamer would do in the
+// Twitch dashboard, because there's no real dashboard behind it. Only the
+// fake source is one.
+type DashboardActor interface {
+	DeleteAsDashboard(rewardID string) error
+}
+
 // Both sources must stay usable wherever a Source is.
 var (
 	_ Source = (*TwitchSource)(nil)

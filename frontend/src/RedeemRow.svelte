@@ -1,11 +1,13 @@
 <script lang="ts">
   import type {Reward} from "../bindings/github.com/SloanGwaltney/whendo/engine/twitchrewards";
 
-  // One redeem on the Redeems page. Only redeems Whendo made get actions,
-  // since Twitch doesn't let Whendo change any other.
-  let {reward, actions}: {
+  // One redeem on the Redeems page. Redeems Whendo made can be changed;
+  // any other can only be recreated in Whendo, since Twitch doesn't let
+  // Whendo change it.
+  let {reward, actions, onRecreate}: {
     reward: Reward;
     actions?: {onEdit: () => void; onTogglePause: () => void; onDelete: () => void};
+    onRecreate?: () => void;
   } = $props();
 
   const secondsPerMinute = 60;
@@ -78,6 +80,10 @@
       <button type="button" class="button" onclick={actions.onTogglePause}>{reward.isPaused ? "Resume" : "Pause"}</button>
       <button type="button" class="button" onclick={actions.onEdit}>Edit</button>
       <button type="button" class="button" onclick={actions.onDelete}>Delete</button>
+    </div>
+  {:else if onRecreate}
+    <div class="controls">
+      <button type="button" class="button" title="Make it a Whendo redeem, so Whendo can change it" onclick={onRecreate}>Recreate in Whendo</button>
     </div>
   {/if}
 </li>

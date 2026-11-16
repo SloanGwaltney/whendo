@@ -120,6 +120,7 @@ The maintainer's account has no channel points, so it only ever gets "not a part
 
 - **The reward code is tested against a fake Twitch server,** like [Send a Chat Message](twitch-steps.md). Tests cover listing, the 403, creating, editing with limits sent as pairs, deleting, and Twitch's error messages.
 - **A fake reward source** stands in for Twitch while developing the UI. Setting `WHENDO_FAKE_REWARDS=1` replaces the Twitch reward client with one that keeps a few made-up redeems in memory: some marked as made by Whendo, some not. Creating, editing, deleting and recreating work on them, and reset when Whendo restarts. Like `WHENDO_TWITCH_CLIENT_ID`, it's for developers and never shown to users.
+- **The fake source acts out the dashboard** while recreating a redeem: "Open the Twitch dashboard" deletes the made-up original, as if the streamer had, since there's no real dashboard behind it.
 - **Fake redeems never fire on their own.** Test runs fire them, the same as any redeem.
 - **The last check is on our first user's account,** which has real channel points.
 
@@ -146,6 +147,7 @@ The Wails layer gets a rewards service for the Redeems page and the picker, and 
 After that, the refund and fulfill steps, then wait for a chat message, which together finish Do a Voice.
 
 ## What Is Still Unverified
+- **The dashboard link:** recreating opens `https://dashboard.twitch.tv/u/<login>/viewer-rewards/channel-points/rewards`. It's Twitch's current address for managing redeems as far as we know, but it isn't documented and hasn't been tried.
 - **Pictures on Whendo redeems:** whether the streamer can set a picture in the Twitch dashboard on a reward an app created.
 - **Error wording:** the "not a partner or affiliate" message, and that Get Custom Reward never answers 403 for any other reason, come from Twitch's reference and haven't been seen from the real API.
 
