@@ -73,7 +73,8 @@
   }
 
   // A new automation has no trigger yet, so it's saved turned off and
-  // needing fixing until it's built. See docs/design/mvp-ui.md#problems.
+  // needing fixing until it's built, then opens in the designer. See
+  // docs/design/mvp-ui.md#home.
   async function create(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const name = newAutomationName.trim();
@@ -81,9 +82,11 @@
       return;
     }
     isCreating = false;
+    let newAutomationID = "";
     await runAction(`Couldn't create “${name}”`, async () => {
+      newAutomationID = await AutomationsService.NewAutomationID();
       const newAutomation: Automation = {
-        id: await AutomationsService.NewAutomationID(),
+        id: newAutomationID,
         name,
         isEnabled: false,
         trigger: {id: "", settings: {}},
@@ -91,6 +94,9 @@
       };
       await AutomationsService.SaveAutomation(newAutomation);
     });
+    if (!errorMessage) {
+      onOpenAutomation(newAutomationID);
+    }
   }
 </script>
 

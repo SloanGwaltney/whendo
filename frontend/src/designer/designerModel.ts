@@ -1,6 +1,7 @@
+import {getContext, setContext} from "svelte";
 import type {CatalogDefinitions} from "../../bindings/github.com/SloanGwaltney/whendo";
 import {ProblemLevel, ProblemSubject} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
-import type {Automation, AvailableVariable, Report} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
+import type {Automation, AvailableVariable, Report, Step} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
 import {Kind, VariableSource} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
 import type {VariableReference} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
 import type {Definition as StepDefinition} from "../../bindings/github.com/SloanGwaltney/whendo/engine/step";
@@ -32,6 +33,44 @@ export interface DesignerView {
   problemLevelsByStepID: Map<string, ProblemLevel>;
   // Settings with a problem, keyed by settingKey.
   settingsWithProblems: Set<string>;
+  // How the variable picker names where a step's values come from, such as
+  // “Step 1, Roll a random number”, keyed by step ID.
+  stepLabelsByID: Map<string, string>;
+}
+
+// What the designer's components can do. DesignerPage provides it through
+// Svelte context, so steps nested inside paths needn't pass it down.
+export interface DesignerActions {
+  editSetting(ownerID: string, settingID: string, anchor: HTMLElement): void;
+  openStepPicker(listKey: string, index: number, anchor: HTMLElement): void;
+  openStepMenu(stepID: string, anchor: HTMLElement): void;
+  openEndingMenu(stepID: string, outcomeID: string, anchor: HTMLElement): void;
+  openTriggerPicker(anchor: HTMLElement): void;
+  // The element whose popover is open, so it can be marked as open.
+  readonly openAnchor: HTMLElement | null;
+}
+
+const designerActionsKey = Symbol("designerActions");
+
+export function provideDesignerActions(actions: DesignerActions): void {
+  setContext(designerActionsKey, actions);
+}
+
+// useDesignerActions returns undefined outside the designer's Build view,
+// such as in Read it back, where nothing is editable.
+export function useDesignerActions(): DesignerActions | undefined {
+  return getContext<DesignerActions | undefined>(designerActionsKey);
+}
+
+// Kinds the designer can edit so far. Messages and choice lists get their
+// editors next.
+const editableKinds = new Set<string>([Kind.KindText, Kind.KindWholeNumber, Kind.KindDuration, Kind.KindOption, Kind.KindVariable]);
+
+// isEditableKind is also true for kinds an integration adds, such as a
+// reward, which are edited as text until they have their own pickers.
+export function isEditableKind(kind: string): boolean {
+  const isEngineKind = (Object.values(Kind) as string[]).includes(kind);
+  return editableKinds.has(kind) || !isEngineKind;
 }
 
 // The owner of the trigger's settings in settingKey, since it has no step ID.
@@ -80,13 +119,27 @@ export function buildDesignerView(catalog: CatalogDefinitions, report: Report, d
     }
   }
 
+  const stepLabelsByID = new Map<string, string>();
+  const stepDefinitionsByType = new Map((catalog.steps ?? []).map((definition) => [definition.id, definition]));
+  const labelSteps = (steps: Step[] | null, isTopLevel: boolean) => {
+    for (const [index, step] of (steps ?? []).entries()) {
+      const name = stepDefinitionsByType.get(step.type)?.displayName ?? step.type;
+      stepLabelsByID.set(step.id, isTopLevel ? `Step ${index + 1}, “${name}”` : `“${name}”`);
+      for (const branch of Object.values(step.outcomes ?? {})) {
+        labelSteps(branch?.steps ?? null, false);
+      }
+    }
+  };
+  labelSteps(draft.steps, true);
+
   return {
     triggerDefinition,
-    stepDefinitionsByType: new Map((catalog.steps ?? []).map((definition) => [definition.id, definition])),
+    stepDefinitionsByType,
     report,
     variableNamesByKey,
     problemLevelsByStepID,
     settingsWithProblems,
+    stepLabelsByID,
   };
 }
 

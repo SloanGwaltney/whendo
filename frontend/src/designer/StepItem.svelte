@@ -2,7 +2,8 @@
   import {AfterBranch, ProblemLevel} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
   import type {Step} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
   import {VariableSource} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
-  import {stepElementID} from "./designerModel";
+  import {branchListKey} from "./draftEditing";
+  import {stepElementID, useDesignerActions} from "./designerModel";
   import type {DesignerView} from "./designerModel";
   import Sentence from "./Sentence.svelte";
   import StepList from "./StepList.svelte";
@@ -23,7 +24,23 @@
   const isSplit = $derived(outcomes.length > 1);
   const problemLevel = $derived(view.problemLevelsByStepID.get(step.id));
   const isUnreachable = $derived(stepReport !== undefined && !stepReport.isReachable);
+  const actions = useDesignerActions();
+  const isMenuOpen = $derived(actions?.openAnchor?.dataset.stepMenu === step.id);
 </script>
+
+{#snippet endingControl(outcomeID: string, ending: string, isEnd: boolean)}
+  {#if actions}
+    <button
+      type="button"
+      class="ending"
+      class:is-end={isEnd}
+      data-ending="{step.id}/{outcomeID}"
+      onclick={(event) => actions.openEndingMenu(step.id, outcomeID, event.currentTarget)}
+    >{ending}</button>
+  {:else}
+    <span class="ending" class:is-end={isEnd}>{ending}</span>
+  {/if}
+{/snippet}
 
 <li class="step-item" class:is-unreachable={isUnreachable}>
   <div class="step" id={stepElementID(step.id)}>
@@ -46,6 +63,16 @@
     {:else}
       <span class="unknown-step">A step Whendo doesn't have: {step.type}</span>
     {/if}
+    {#if actions}
+      <button
+        type="button"
+        class="menu-button"
+        aria-label="Step options"
+        aria-expanded={isMenuOpen}
+        data-step-menu={step.id}
+        onclick={(event) => actions.openStepMenu(step.id, event.currentTarget)}
+      >⋯</button>
+    {/if}
   </div>
 
   {#if isSplit}
@@ -66,7 +93,12 @@
             </span>
             {#if branchSteps.length === 0}
               <!-- A path with no steps takes one line. -->
-              <span class="path-ending">then <span class="ending" class:is-end={branch?.afterBranch === AfterBranch.AfterBranchEnd}>{ending}</span></span>
+              <span class="path-ending">
+                then {@render endingControl(outcome.id, ending, branch?.afterBranch === AfterBranch.AfterBranchEnd)}
+                {#if actions}
+                  <button type="button" class="add-inline" onclick={(event) => actions.openStepPicker(branchListKey(step.id, outcome.id), 0, event.currentTarget)}>+ Add a step</button>
+                {/if}
+              </span>
             {:else if commonVariables.length > 0}
               <span class="path-gives">
                 gives you
@@ -77,8 +109,8 @@
             {/if}
           </div>
           {#if branchSteps.length > 0}
-            <StepList steps={branchSteps} depth={depth + 1} {view}/>
-            <div class="path-foot">then <span class="ending" class:is-end={branch?.afterBranch === AfterBranch.AfterBranchEnd}>{ending}</span></div>
+            <StepList steps={branchSteps} listKey={branchListKey(step.id, outcome.id)} depth={depth + 1} {view}/>
+            <div class="path-foot">then {@render endingControl(outcome.id, ending, branch?.afterBranch === AfterBranch.AfterBranchEnd)}</div>
           {/if}
         </section>
       {/each}
@@ -94,7 +126,7 @@
 
   .step {
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr);
+    grid-template-columns: 28px minmax(0, 1fr) auto;
     gap: 10px;
     align-items: start;
     padding: var(--space-2) 6px;
@@ -162,6 +194,33 @@
     background: var(--color-warning);
   }
 
+  .menu-button {
+    width: 28px;
+    height: 28px;
+    margin-top: 2px;
+    border-radius: var(--radius);
+    color: var(--color-text-faint);
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .menu-button:hover,
+  .menu-button[aria-expanded="true"] {
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+  }
+
+  .add-inline {
+    padding: 0 6px;
+    border-radius: var(--radius-small);
+    color: var(--color-accent);
+    font-size: 13px;
+  }
+
+  .add-inline:hover {
+    background: var(--color-accent-soft);
+  }
+
   .unknown-step {
     color: var(--color-danger);
     font-size: var(--font-size-sentence);
@@ -224,6 +283,10 @@
     border-radius: var(--radius);
     background: var(--color-accent-soft);
     color: var(--color-text);
+  }
+
+  button.ending:hover {
+    background: var(--color-accent-hover);
   }
 
   .ending.is-end {

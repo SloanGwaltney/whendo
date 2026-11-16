@@ -1,7 +1,7 @@
 <script lang="ts">
   import type {TriggerSelection} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
   import {VariableSource} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
-  import {triggerElementID, triggerOwnerID} from "./designerModel";
+  import {triggerElementID, triggerOwnerID, useDesignerActions} from "./designerModel";
   import type {DesignerView} from "./designerModel";
   import Sentence from "./Sentence.svelte";
   import ValuePill from "./ValuePill.svelte";
@@ -10,6 +10,7 @@
   let {trigger, view}: {trigger: TriggerSelection; view: DesignerView} = $props();
 
   let isShowingEveryVariable = $state(false);
+  const actions = useDesignerActions();
 
   const definition = $derived(view.triggerDefinition);
   const variables = $derived(definition?.variables ?? []);
@@ -22,10 +23,15 @@
     <span class="keyword">When</span>
     {#if definition}
       <Sentence sentence={definition.sentence} settings={definition.settings} values={trigger.settings} ownerID={triggerOwnerID} {view} appearance="slots"/>
+    {:else if trigger.id === "" && actions}
+      <button type="button" class="missing" data-trigger-picker onclick={(event) => actions.openTriggerPicker(event.currentTarget)}>pick what starts it</button>
     {:else if trigger.id === ""}
       <span class="missing">pick what starts it</span>
     {:else}
       <span class="missing">a trigger Whendo doesn't have: {trigger.id}</span>
+    {/if}
+    {#if actions && trigger.id !== ""}
+      <button type="button" class="change" data-trigger-picker onclick={(event) => actions.openTriggerPicker(event.currentTarget)}>Change</button>
     {/if}
   </div>
   {#if variables.length > 0}
@@ -91,6 +97,23 @@
     color: var(--color-text-muted);
     font-size: var(--font-size-sentence);
     font-style: italic;
+  }
+
+  .change {
+    margin-left: auto;
+    padding: 2px 10px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius);
+    color: var(--color-text-muted);
+    font-size: 13px;
+  }
+
+  .change:hover {
+    color: var(--color-text);
+  }
+
+  button.missing:hover {
+    color: var(--color-text);
   }
 
   .gives {

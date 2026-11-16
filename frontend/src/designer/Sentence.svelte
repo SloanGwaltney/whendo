@@ -1,7 +1,7 @@
 <script lang="ts">
   import type {AvailableVariable} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automation";
   import type {Definition as SettingDefinition, Sentence, Values} from "../../bindings/github.com/SloanGwaltney/whendo/engine/automationsetting";
-  import {isEmptyValue, settingKey} from "./designerModel";
+  import {isEditableKind, isEmptyValue, settingKey, useDesignerActions} from "./designerModel";
   import type {DesignerView} from "./designerModel";
   import SettingValue from "./SettingValue.svelte";
 
@@ -19,6 +19,7 @@
   } = $props();
 
   const settingsByID = $derived(new Map((settings ?? []).map((definition) => [definition.id, definition])));
+  const actions = useDesignerActions();
 </script>
 
 <span class="sentence" class:is-prose={appearance === "prose"}>
@@ -33,18 +34,33 @@
       {@const value = values?.[part.settingId]}
       {#if definition}
         {@const isEmpty = isEmptyValue(definition.kind, value)}
-        <span
-          class="value"
-          class:is-empty={isEmpty}
-          class:has-problem={view.settingsWithProblems.has(settingKey(ownerID, part.settingId))}
-          data-setting={settingKey(ownerID, part.settingId)}
-        >
-          {#if isEmpty}
-            {definition.placeholder || "not set"}
-          {:else}
-            <SettingValue {definition} {value} {availableVariables} {view}/>
-          {/if}
-        </span>
+        {@const key = settingKey(ownerID, part.settingId)}
+        {@const settingID = part.settingId}
+        {#if appearance === "slots" && actions && isEditableKind(definition.kind)}
+          <button
+            type="button"
+            class="value"
+            class:is-empty={isEmpty}
+            class:has-problem={view.settingsWithProblems.has(key)}
+            class:is-open={actions.openAnchor?.dataset.setting === key}
+            data-setting={key}
+            onclick={(event) => actions.editSetting(ownerID, settingID, event.currentTarget)}
+          >
+            {#if isEmpty}
+              {definition.placeholder || "not set"}
+            {:else}
+              <SettingValue {definition} {value} {availableVariables} {view}/>
+            {/if}
+          </button>
+        {:else}
+          <span class="value" class:is-empty={isEmpty} class:has-problem={view.settingsWithProblems.has(key)} data-setting={key}>
+            {#if isEmpty}
+              {definition.placeholder || "not set"}
+            {:else}
+              <SettingValue {definition} {value} {availableVariables} {view}/>
+            {/if}
+          </span>
+        {/if}
       {/if}
     {/if}
   {/each}
@@ -72,6 +88,20 @@
     border-radius: var(--radius);
     background: var(--color-accent-soft);
     font-weight: 500;
+  }
+
+  button.value {
+    text-align: left;
+    line-height: 1.7;
+  }
+
+  button.value:hover {
+    background: var(--color-accent-hover);
+  }
+
+  .value.is-open {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
   }
 
   .value.is-empty {
