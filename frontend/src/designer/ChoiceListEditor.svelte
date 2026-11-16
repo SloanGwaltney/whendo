@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {untrack} from "svelte";
+  import {tick, untrack} from "svelte";
   import type {Choice} from "./designerModel";
   import {newChoiceID} from "./draftEditing";
 
@@ -25,8 +25,15 @@
     onChange(filledChoices.length === 0 ? null : filledChoices);
   }
 
-  function addChoice(): void {
+  let listElement: HTMLUListElement | undefined = $state();
+
+  // The new choice gets the keyboard, which also scrolls it into view when
+  // the list is longer than the popover.
+  async function addChoice(): Promise<void> {
     choices.push({id: newChoiceID(), text: ""});
+    await tick();
+    const inputs = listElement?.querySelectorAll<HTMLInputElement>("input");
+    inputs?.[inputs.length - 1]?.focus();
   }
 
   function removeChoice(choiceIndex: number): void {
@@ -42,7 +49,7 @@
   }
 </script>
 
-<ul class="choices">
+<ul class="choices" bind:this={listElement}>
   {#each choices as choice, choiceIndex (choice.id)}
     <li class="choice">
       <input
